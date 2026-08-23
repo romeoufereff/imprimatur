@@ -83,17 +83,66 @@ tailwind.config = {
 </head>
 <body>
 
-<div id="slide" data-template="05-quote" class="bg-gs-deep">
+<div id="slide" data-template="09-agenda" class="bg-white">
 
-  <div class="absolute left-[96px] top-[400px] w-[1200px]">
-    <div data-decor-text="ok" aria-hidden="true"
-         class="absolute -top-[72px] -left-[8px] text-[280px] leading-none font-gs font-extrabold text-gs-viz-lime select-none pointer-events-none"
-         style="opacity:.18;">&ldquo;</div>
-    <div class="relative flex flex-col gap-[32px]">
-      <div class="font-gs font-semibold text-gs-title text-gs-white leading-tight">&ldquo;I finished a run and immediately started another one.&rdquo;</div>
-      <span class="text-gs-eyebrow text-gs-muted-soft uppercase tracking-gs-eyebrow"
-            style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtest 06 &middot; 41 players</span>
+  <div class="absolute left-0 top-0 right-0 h-[10px] bg-gs-support-1"></div>
+
+  <div class="absolute left-[96px] top-[80px] flex flex-col gap-[16px]">
+    <span class="text-gs-eyebrow text-gs-support-1 uppercase tracking-gs-eyebrow"
+          style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700;">09 &mdash; Agenda</span>
+    <h1 class="font-gs font-bold text-gs-title text-gs-ink leading-none">What we&rsquo;ll cover</h1>
+  </div>
+
+  <div class="absolute left-[96px] top-[380px] w-[1728px] grid grid-cols-2 gap-x-[96px] gap-y-0">
+
+    <div class="flex items-baseline gap-[28px] py-[24px] border-t border-gs-rule">
+      <span class="font-gs font-extrabold text-gs-h2 text-gs-support-1 leading-none" style="width:76px;">01</span>
+      <div class="flex flex-col gap-[4px]">
+        <div class="font-gs font-semibold text-gs-subhead text-gs-ink leading-snug">The hook</div>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">What makes every run feel different</span>
+      </div>
     </div>
+
+    <div class="flex items-baseline gap-[28px] py-[24px] border-t border-gs-rule">
+      <span class="font-gs font-extrabold text-gs-h2 text-gs-support-1 leading-none" style="width:76px;">02</span>
+      <div class="flex flex-col gap-[4px]">
+        <div class="font-gs font-semibold text-gs-subhead text-gs-ink leading-snug">The market</div>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Where run-based games sit in 2026</span>
+      </div>
+    </div>
+
+    <div class="flex items-baseline gap-[28px] py-[24px] border-t border-gs-rule">
+      <span class="font-gs font-extrabold text-gs-h2 text-gs-support-1 leading-none" style="width:76px;">03</span>
+      <div class="flex flex-col gap-[4px]">
+        <div class="font-gs font-semibold text-gs-subhead text-gs-ink leading-snug">Traction</div>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Playtest six, by the numbers</span>
+      </div>
+    </div>
+
+    <div class="flex items-baseline gap-[28px] py-[24px] border-t border-gs-rule">
+      <span class="font-gs font-extrabold text-gs-h2 text-gs-support-1 leading-none" style="width:76px;">04</span>
+      <div class="flex flex-col gap-[4px]">
+        <div class="font-gs font-semibold text-gs-subhead text-gs-ink leading-snug">Design pillars</div>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">What we will and won&rsquo;t compromise on</span>
+      </div>
+    </div>
+
+    <div class="flex items-baseline gap-[28px] py-[24px] border-t border-gs-rule">
+      <span class="font-gs font-extrabold text-gs-h2 text-gs-support-1 leading-none" style="width:76px;">05</span>
+      <div class="flex flex-col gap-[4px]">
+        <div class="font-gs font-semibold text-gs-subhead text-gs-ink leading-snug">Roadmap</div>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Shipped, in build, and planned</span>
+      </div>
+    </div>
+
+    <div class="flex items-baseline gap-[28px] py-[24px] border-t border-gs-rule">
+      <span class="font-gs font-extrabold text-gs-h2 text-gs-support-1 leading-none" style="width:76px;">06</span>
+      <div class="flex flex-col gap-[4px]">
+        <div class="font-gs font-semibold text-gs-subhead text-gs-ink leading-snug">The team</div>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Who&rsquo;s building it</span>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── END BODY ─────────────────────────────────────── -->

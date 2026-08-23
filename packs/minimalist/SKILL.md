@@ -67,12 +67,26 @@ Copy a template verbatim to start a slide — the `data-template` attribute is h
 
 | file | what it is for |
 |---|---|
-| `templates/01-cover.html` | Opening slide: eyebrow, headline, one supporting line. |
-| `templates/02-section.html` | Divider that marks a turn in the argument. |
-| `templates/03-two-column.html` | Two things compared side by side. |
-| `templates/04-statement.html` | One idea, large, with room around it. |
-| `templates/05-metrics.html` | Three measures as equal cards. |
-| `templates/06-closing.html` | Next steps and the ask. |
+| `templates/01-title.html` | Opening slide: eyebrow, headline, one supporting line. |
+| `templates/02-agenda.html` | Numbered contents list, one row per topic. |
+| `templates/03-section-divider.html` | Full-ink divider that marks a turn in the argument. |
+| `templates/04-single-column.html` | One idea, large, with room around it. |
+| `templates/05-two-column.html` | Two figures compared side by side. |
+| `templates/06-chart.html` | A simple bar chart, one bar emphasised in accent. |
+| `templates/07-quote.html` | A single pull quote with a thin rule above it. |
+| `templates/08-image-full-bleed.html` | Full-bleed photo placeholder with headline overlay. |
+| `templates/09-closing.html` | Thank-you slide with contact and context. |
+| `templates/10-team-roster.html` | Name / role / one-liner rows, no avatars. |
+| `templates/11-timeline.html` | Horizontal milestone timeline with square ticks. |
+| `templates/12-comparison-table.html` | Us vs. competitors, checkmark / em-dash grid. |
+| `templates/13-three-column.html` | Three parallel points, numbered, divided by thin rules. |
+| `templates/14-big-stat.html` | One dominant figure, isolated by whitespace. |
+| `templates/15-process-steps.html` | A short sequence of steps with typographic arrows. |
+| `templates/16-quote-grid.html` | Two short quotes side by side. |
+| `templates/17-checklist.html` | A two-column list with small checkmarks. |
+| `templates/18-definitions.html` | Term / definition rows — a short glossary. |
+| `templates/19-breakdown.html` | A percentage allocation as flat, un-rounded bars. |
+| `templates/20-org-simple.html` | A small reporting structure drawn in rule lines and type, no boxes. |
 
 These are a floor, not a ceiling: they are generated from this pack's tokens so they are correct and on-brand, not so they are the best possible slide. A brief that deserves a bespoke layout should get one.
 

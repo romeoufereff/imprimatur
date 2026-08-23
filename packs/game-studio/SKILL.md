@@ -72,12 +72,27 @@ Copy a template verbatim to start a slide — the `data-template` attribute is h
 
 | file | what it is for |
 |---|---|
-| `templates/01-cover.html` | Opening slide: eyebrow, headline, one supporting line. |
-| `templates/02-section.html` | Divider that marks a turn in the argument. |
-| `templates/03-two-column.html` | Two things compared side by side. |
-| `templates/04-statement.html` | One idea, large, with room around it. |
-| `templates/05-metrics.html` | Three measures as equal cards. |
-| `templates/06-closing.html` | Next steps and the ask. |
+| `templates/01-title.html` | Opening slide: eyebrow, headline, one supporting line. |
+| `templates/02-section.html` | Full-bleed divider marking a turn in the argument, with a large ghost section number. |
+| `templates/03-stats.html` | Traction: up to four metric cards plus a progress bar. |
+| `templates/04-two-column.html` | Media placeholder beside a lead paragraph and one supporting callout. |
+| `templates/05-quote.html` | Pull quote with an oversized decorative quotation mark and a mono attribution line. |
+| `templates/06-roadmap.html` | Status cards — shipped / in build / planned — across the current build. |
+| `templates/07-team.html` | Team roster: avatar initials, name, role. |
+| `templates/08-closing.html` | Full-bleed close: the ask and next steps. |
+| `templates/09-agenda.html` | Numbered two-column agenda / table of contents. |
+| `templates/10-feature-grid.html` | Three or four design-pillar cards, each with a small outline icon. |
+| `templates/11-big-statement.html` | Full-bleed thesis slide: one bold claim, large, with room around it. |
+| `templates/12-market-size.html` | TAM/SAM/SOM as three descending circles. |
+| `templates/13-comparison-table.html` | Feature comparison: us vs. competitors, checkmark grid. |
+| `templates/14-timeline.html` | Horizontal milestone timeline with dated nodes. |
+| `templates/15-use-of-funds.html` | Funding ask plus a percentage breakdown by category. |
+| `templates/16-media-showcase.html` | Full-bleed screenshot/gameplay-capture placeholder with a caption strip. |
+| `templates/17-testimonial-grid.html` | Three short quotes side by side — social proof, not a hero pull-quote. |
+| `templates/18-process-flow.html` | A short pipeline as connected boxes, left to right. |
+| `templates/19-org-chart.html` | Small studio structure: one lead box branching to disciplines. |
+| `templates/20-risk-table.html` | Risk / mitigation / owner rows. |
+| `templates/21-platforms.html` | Target platform badges with launch vs. post-launch status. |
 
 These are a floor, not a ceiling: they are generated from this pack's tokens so they are correct and on-brand, not so they are the best possible slide. A brief that deserves a bespoke layout should get one.
 

@@ -83,17 +83,48 @@ tailwind.config = {
 </head>
 <body>
 
-<div id="slide" data-template="05-quote" class="bg-gs-deep">
+<div id="slide" data-template="12-market-size" class="bg-white">
 
-  <div class="absolute left-[96px] top-[400px] w-[1200px]">
-    <div data-decor-text="ok" aria-hidden="true"
-         class="absolute -top-[72px] -left-[8px] text-[280px] leading-none font-gs font-extrabold text-gs-viz-lime select-none pointer-events-none"
-         style="opacity:.18;">&ldquo;</div>
-    <div class="relative flex flex-col gap-[32px]">
-      <div class="font-gs font-semibold text-gs-title text-gs-white leading-tight">&ldquo;I finished a run and immediately started another one.&rdquo;</div>
-      <span class="text-gs-eyebrow text-gs-muted-soft uppercase tracking-gs-eyebrow"
-            style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtest 06 &middot; 41 players</span>
+  <div class="absolute left-0 top-0 right-0 h-[10px] bg-gs-viz-rose-soft"></div>
+
+  <div class="absolute left-[96px] top-[80px] flex flex-col gap-[16px]">
+    <span class="text-gs-eyebrow text-gs-viz-rose-soft uppercase tracking-gs-eyebrow"
+          style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700;">02 &mdash; The market</span>
+    <h1 class="font-gs font-bold text-gs-title text-gs-ink leading-none">Sizing the opportunity</h1>
+  </div>
+
+  <div class="absolute left-[96px] top-[380px] w-[1728px] flex items-end justify-center gap-[96px]">
+
+    <div class="flex flex-col items-center gap-[24px]">
+      <div class="rounded-full border-2 border-gs-rule flex items-center justify-center" style="width:420px;height:420px;">
+        <span class="font-gs font-extrabold text-gs-metric text-gs-muted-soft leading-none" style="font-size:72px;">$4.2B</span>
+      </div>
+      <div class="flex flex-col items-center gap-[4px]">
+        <span class="text-gs-label text-gs-ink uppercase tracking-gs-label">TAM</span>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Global run-based games</span>
+      </div>
     </div>
+
+    <div class="flex flex-col items-center gap-[24px]">
+      <div class="rounded-full border-2 border-gs-accent flex items-center justify-center" style="width:300px;height:300px;">
+        <span class="font-gs font-extrabold text-gs-metric text-gs-accent leading-none" style="font-size:56px;">$680M</span>
+      </div>
+      <div class="flex flex-col items-center gap-[4px]">
+        <span class="text-gs-label text-gs-ink uppercase tracking-gs-label">SAM</span>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">PC &amp; console roguelites</span>
+      </div>
+    </div>
+
+    <div class="flex flex-col items-center gap-[24px]">
+      <div class="rounded-full bg-gs-primary flex items-center justify-center" style="width:180px;height:180px;">
+        <span class="font-gs font-extrabold text-gs-white leading-none" style="font-size:36px;">$42M</span>
+      </div>
+      <div class="flex flex-col items-center gap-[4px]">
+        <span class="text-gs-label text-gs-ink uppercase tracking-gs-label">SOM</span>
+        <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Year-one target</span>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── END BODY ─────────────────────────────────────── -->

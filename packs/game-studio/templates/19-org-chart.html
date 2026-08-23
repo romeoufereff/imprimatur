@@ -83,16 +83,51 @@ tailwind.config = {
 </head>
 <body>
 
-<div id="slide" data-template="05-quote" class="bg-gs-deep">
+<div id="slide" data-template="19-org-chart" class="bg-white">
 
-  <div class="absolute left-[96px] top-[400px] w-[1200px]">
-    <div data-decor-text="ok" aria-hidden="true"
-         class="absolute -top-[72px] -left-[8px] text-[280px] leading-none font-gs font-extrabold text-gs-viz-lime select-none pointer-events-none"
-         style="opacity:.18;">&ldquo;</div>
-    <div class="relative flex flex-col gap-[32px]">
-      <div class="font-gs font-semibold text-gs-title text-gs-white leading-tight">&ldquo;I finished a run and immediately started another one.&rdquo;</div>
-      <span class="text-gs-eyebrow text-gs-muted-soft uppercase tracking-gs-eyebrow"
-            style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtest 06 &middot; 41 players</span>
+  <div class="absolute left-0 top-0 right-0 h-[10px] bg-gs-viz-lime"></div>
+
+  <div class="absolute left-[96px] top-[80px] flex flex-col gap-[16px]">
+    <span class="text-gs-eyebrow text-gs-support-2 uppercase tracking-gs-eyebrow"
+          style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700;">06 &mdash; The team</span>
+    <h1 class="font-gs font-bold text-gs-title text-gs-ink leading-none">Eight people, three disciplines</h1>
+  </div>
+
+  <!-- Connector geometry, computed not eyeballed: parent centre = canvas centre = 960.
+       Three 400px-wide children with 134px gaps sit at left=226/760/1294, so their centres
+       are 426 / 960 / 1494 — the middle child lands exactly under the parent by construction.
+       Each 2px-wide vertical drop is therefore left:(centre-1)px; the rail is a horizontal bar
+       whose own left/right edges ARE the outer two centres, needing no centring math. -->
+  <div class="absolute left-[959px] top-[452px] w-[2px] h-[48px] bg-gs-rule"></div>
+  <div class="absolute left-[426px] top-[500px] w-[1068px] h-[2px] bg-gs-rule"></div>
+  <div class="absolute left-[425px] top-[500px] w-[2px] h-[48px] bg-gs-rule"></div>
+  <div class="absolute left-[959px] top-[500px] w-[2px] h-[48px] bg-gs-rule"></div>
+  <div class="absolute left-[1493px] top-[500px] w-[2px] h-[48px] bg-gs-rule"></div>
+
+  <div class="absolute left-[760px] top-[380px] w-[400px]">
+    <div class="rounded-gs-lg border-2 border-gs-ink bg-white flex flex-col items-center justify-center gap-[4px] h-[72px]">
+      <span class="font-gs font-bold text-gs-body-sm text-gs-ink">Founder &amp; Creative Director</span>
+    </div>
+  </div>
+
+  <div class="absolute left-[226px] top-[548px] w-[400px]">
+    <div class="rounded-gs-lg border border-gs-rule bg-gs-surface flex flex-col items-center justify-center gap-[4px] h-[72px]">
+      <span class="font-gs font-semibold text-gs-body-sm text-gs-ink">Design lead</span>
+      <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">2 systems designers</span>
+    </div>
+  </div>
+
+  <div class="absolute left-[760px] top-[548px] w-[400px]">
+    <div class="rounded-gs-lg border border-gs-rule bg-gs-surface flex flex-col items-center justify-center gap-[4px] h-[72px]">
+      <span class="font-gs font-semibold text-gs-body-sm text-gs-ink">Engineering lead</span>
+      <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">3 engineers</span>
+    </div>
+  </div>
+
+  <div class="absolute left-[1294px] top-[548px] w-[400px]">
+    <div class="rounded-gs-lg border border-gs-rule bg-gs-surface flex flex-col items-center justify-center gap-[4px] h-[72px]">
+      <span class="font-gs font-semibold text-gs-body-sm text-gs-ink">Art lead</span>
+      <span class="text-gs-caption text-gs-muted" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">1 artist, 1 contractor</span>
     </div>
   </div>
 

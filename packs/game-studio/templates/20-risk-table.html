@@ -83,17 +83,42 @@ tailwind.config = {
 </head>
 <body>
 
-<div id="slide" data-template="05-quote" class="bg-gs-deep">
+<div id="slide" data-template="20-risk-table" class="bg-white">
 
-  <div class="absolute left-[96px] top-[400px] w-[1200px]">
-    <div data-decor-text="ok" aria-hidden="true"
-         class="absolute -top-[72px] -left-[8px] text-[280px] leading-none font-gs font-extrabold text-gs-viz-lime select-none pointer-events-none"
-         style="opacity:.18;">&ldquo;</div>
-    <div class="relative flex flex-col gap-[32px]">
-      <div class="font-gs font-semibold text-gs-title text-gs-white leading-tight">&ldquo;I finished a run and immediately started another one.&rdquo;</div>
-      <span class="text-gs-eyebrow text-gs-muted-soft uppercase tracking-gs-eyebrow"
-            style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtest 06 &middot; 41 players</span>
+  <div class="absolute left-0 top-0 right-0 h-[10px] bg-gs-support-1"></div>
+
+  <div class="absolute left-[96px] top-[80px] flex flex-col gap-[16px]">
+    <span class="text-gs-eyebrow text-gs-support-1 uppercase tracking-gs-eyebrow"
+          style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700;">07 &mdash; The ask</span>
+    <h1 class="font-gs font-bold text-gs-title text-gs-ink leading-none">What could go wrong</h1>
+  </div>
+
+  <div class="absolute left-[96px] top-[360px] w-[1728px]">
+
+    <div class="grid gap-0" style="grid-template-columns: 480px 1fr 340px;">
+
+      <div class="pb-[20px] border-b-2 border-gs-ink text-gs-label text-gs-ink uppercase tracking-gs-label">Risk</div>
+      <div class="pb-[20px] border-b-2 border-gs-ink text-gs-label text-gs-ink uppercase tracking-gs-label">Mitigation</div>
+      <div class="pb-[20px] border-b-2 border-gs-ink text-gs-label text-gs-ink uppercase tracking-gs-label">Owner</div>
+
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-body pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Procedural stitching produces an unfair or unbeatable layout</div>
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-muted pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Automated pathing validation runs on every generated seed before it can be played</div>
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-ink" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Engineering lead</div>
+
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-body pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Drop-in co-op destabilises the solo balance</div>
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-muted pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Encounter density scales live off player count; solo and co-op are tuned as separate curves</div>
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-ink" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Design lead</div>
+
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-body pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Wishlist growth stalls before early access</div>
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-muted pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Monthly playtest builds keep a visible content cadence in front of the Discord community</div>
+      <div class="py-[26px] border-b border-gs-rule text-gs-body-sm text-gs-ink" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Founder</div>
+
+      <div class="py-[26px] text-gs-body-sm text-gs-body pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Small team means one departure blocks a discipline</div>
+      <div class="py-[26px] text-gs-body-sm text-gs-muted pr-[32px]" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">A vetted contractor bench covers art and engineering on a two-week onboarding SLA</div>
+      <div class="py-[26px] text-gs-body-sm text-gs-ink" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Founder</div>
+
     </div>
+
   </div>
 
   <!-- ── END BODY ─────────────────────────────────────── -->

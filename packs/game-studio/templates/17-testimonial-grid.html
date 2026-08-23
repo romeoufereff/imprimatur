@@ -83,17 +83,36 @@ tailwind.config = {
 </head>
 <body>
 
-<div id="slide" data-template="05-quote" class="bg-gs-deep">
+<div id="slide" data-template="17-testimonial-grid" class="bg-gs-surface">
 
-  <div class="absolute left-[96px] top-[400px] w-[1200px]">
-    <div data-decor-text="ok" aria-hidden="true"
-         class="absolute -top-[72px] -left-[8px] text-[280px] leading-none font-gs font-extrabold text-gs-viz-lime select-none pointer-events-none"
-         style="opacity:.18;">&ldquo;</div>
-    <div class="relative flex flex-col gap-[32px]">
-      <div class="font-gs font-semibold text-gs-title text-gs-white leading-tight">&ldquo;I finished a run and immediately started another one.&rdquo;</div>
-      <span class="text-gs-eyebrow text-gs-muted-soft uppercase tracking-gs-eyebrow"
-            style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtest 06 &middot; 41 players</span>
+  <div class="absolute left-0 top-0 right-0 h-[10px] bg-gs-viz-rose-soft"></div>
+
+  <div class="absolute left-[96px] top-[80px] flex flex-col gap-[16px]">
+    <span class="text-gs-eyebrow text-gs-primary-mid uppercase tracking-gs-eyebrow"
+          style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700;">03 &mdash; Traction</span>
+    <h1 class="font-gs font-bold text-gs-title text-gs-ink leading-none">What playtesters said</h1>
+  </div>
+
+  <div class="absolute left-[96px] top-[400px] flex gap-[32px]">
+
+    <div class="w-[512px] bg-white rounded-gs-lg p-[40px] flex flex-col gap-[20px]">
+      <div data-decor-text="ok" aria-hidden="true" class="font-gs font-extrabold text-gs-viz-rose-soft select-none pointer-events-none" style="font-size:64px;line-height:1;opacity:.5;">&ldquo;</div>
+      <p class="text-gs-body-sm text-gs-body leading-normal" style="font-family:'IBM Plex Sans',system-ui,sans-serif; margin-top:-24px;">Died on run four, was mad at myself, not the game. Immediately went again.</p>
+      <span class="text-gs-caption text-gs-muted uppercase tracking-gs-label" style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtester &middot; Discord</span>
     </div>
+
+    <div class="w-[512px] bg-white rounded-gs-lg p-[40px] flex flex-col gap-[20px]">
+      <div data-decor-text="ok" aria-hidden="true" class="font-gs font-extrabold text-gs-viz-rose-soft select-none pointer-events-none" style="font-size:64px;line-height:1;opacity:.5;">&ldquo;</div>
+      <p class="text-gs-body-sm text-gs-body leading-normal" style="font-family:'IBM Plex Sans',system-ui,sans-serif; margin-top:-24px;">Dropped my friend in mid-run with zero setup. That alone sold me on the build.</p>
+      <span class="text-gs-caption text-gs-muted uppercase tracking-gs-label" style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtester &middot; Discord</span>
+    </div>
+
+    <div class="w-[512px] bg-white rounded-gs-lg p-[40px] flex flex-col gap-[20px]">
+      <div data-decor-text="ok" aria-hidden="true" class="font-gs font-extrabold text-gs-viz-rose-soft select-none pointer-events-none" style="font-size:64px;line-height:1;opacity:.5;">&ldquo;</div>
+      <p class="text-gs-body-sm text-gs-body leading-normal" style="font-family:'IBM Plex Sans',system-ui,sans-serif; margin-top:-24px;">First roguelite where I can actually explain why I lost. That&rsquo;s rare.</p>
+      <span class="text-gs-caption text-gs-muted uppercase tracking-gs-label" style="font-family:'IBM Plex Mono',ui-monospace,monospace;">Playtester &middot; Steam survey</span>
+    </div>
+
   </div>
 
   <!-- ── END BODY ─────────────────────────────────────── -->
