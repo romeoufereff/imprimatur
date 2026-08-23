@@ -1,0 +1,30 @@
+{
+  "type": "pie",
+  "width": 700,
+  "height": 700,
+  "center": [
+    350,
+    350
+  ],
+  "radius": 260,
+  "start_angle": 0,
+  "slices": [
+    {
+      "label": "A",
+      "value": 40,
+      "color": "role:primary-mid",
+      "explode": 0
+    },
+    {
+      "label": "B",
+      "value": 30
+    },
+    {
+      "label": "C",
+      "value": 30,
+      "color": "role:accent"
+    }
+  ],
+  "labels": "inside",
+  "show_percent": true
+}

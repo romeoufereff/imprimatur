@@ -1,0 +1,23 @@
+[
+  {"query": "client sent over their master template — Northwind_Corporate_Master.potx. I need to know what their real brand colours and type scale are before we build anything for them", "should_trigger": true},
+  {"query": "we're starting with a new client next month and I want their decks to actually look like theirs, not approximately. all I have is a 40-slide deck their marketing team made", "should_trigger": true},
+  {"query": "onboard Acme into the deck pipeline. brand guidelines pdf is in ~/Downloads/acme-brand-2025.pdf, 6 pages, mostly logo usage rules", "should_trigger": true},
+  {"query": "pull the palette out of this pptx. I keep eyeballing their blue and getting it slightly wrong", "should_trigger": true},
+  {"query": "can you extract the brand from this deck so we can reuse it? their designer clearly had a system, I just can't see it from the slides", "should_trigger": true},
+  {"query": "I'm about to hand-write a tokens file for a client's colours based on screenshots. is there a better way to do this", "should_trigger": true},
+  {"query": "the client asked for the proposal 'in their style'. we have their annual report as a PDF and nothing else. what can we actually do with that", "should_trigger": true},
+  {"query": "we need a branded version of the deck pipeline for Sandoz — same workflow, their look. where do I start", "should_trigger": true},
+  {"query": "what are Northwind's actual brand tokens? not what I think they are, what's declared in the file they sent", "should_trigger": true},
+
+  {"query": "build me a 10-slide pitch deck for the Northwind data platform work. exec audience, needs an ROI slide", "should_trigger": false},
+  {"query": "the pack we forged for Acme is throwing 'roles point at tokens that do not exist' when I run emit_pack. what did I get wrong in decisions.json", "should_trigger": false},
+  {"query": "read Acme_Brand_2025.pdf and tell me what their tone-of-voice guidelines say about how we should write headlines", "should_trigger": false},
+  {"query": "convert this pptx to pdf, I just need to email it to someone", "should_trigger": false},
+  {"query": "our slides are failing the brand check — 'hex color outside the palette'. can you find where the off-palette colour is coming from", "should_trigger": false},
+  {"query": "make a new template for the design system — a three-column comparison layout. we don't have one and I keep faking it with the two-column", "should_trigger": false},
+  {"query": "extract all the images from this powerpoint into a folder, I need them for the website", "should_trigger": false},
+  {"query": "what colour is Acme blue again? I just need the hex for a quick mockup", "should_trigger": false},
+  {"query": "the client's grey is too light for body text and it's failing WCAG. what do I do about it", "should_trigger": false},
+  {"query": "can you set up a Tailwind config for a React app? nothing to do with slides, just a normal web project", "should_trigger": false},
+  {"query": "review the deck I built for Acme and tell me whether it actually looks on-brand", "should_trigger": false}
+]

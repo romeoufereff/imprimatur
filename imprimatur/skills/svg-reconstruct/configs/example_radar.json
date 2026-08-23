@@ -1,0 +1,47 @@
+{
+  "type": "radar",
+  "width": 640,
+  "height": 640,
+  "background": "#FFFFFF",
+  "center": [
+    320,
+    320
+  ],
+  "radius": 240,
+  "rings": 5,
+  "max": 100,
+  "axes": [
+    "Speed",
+    "Power",
+    "Range",
+    "Cost",
+    "Comfort",
+    "Safety"
+  ],
+  "series": [
+    {
+      "name": "Model A",
+      "color": "role:primary-mid",
+      "values": [
+        80,
+        60,
+        90,
+        40,
+        70,
+        85
+      ]
+    },
+    {
+      "name": "Model B",
+      "color": "role:accent",
+      "values": [
+        60,
+        85,
+        50,
+        75,
+        65,
+        60
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "type": "cycle",
+  "width": 800,
+  "height": 800,
+  "background": "#FFFFFF",
+  "center": [
+    400,
+    400
+  ],
+  "radius": 240,
+  "node_radius": 62,
+  "rotation": 0,
+  "steps": [
+    {
+      "label": "Plan",
+      "icon": "clipboard-list"
+    },
+    {
+      "label": "Do",
+      "icon": "play",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "label": "Check",
+      "icon": "search-check",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "label": "Act",
+      "icon": "zap"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "imprimatur",
+  "displayName": "Imprimatur",
+  "version": "1.0.0",
+  "description": "Let it be printed. A design-system-agnostic pipeline for branded presentation decks: brief intake, narrative, slide design, brand and design audits, a visual review gate, and PDF/PPTX export. Nothing ships until it passes the pack's rules. Swap the design-system pack to change brand.",
+  "author": {
+    "name": "Roman Iuferev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "presentation",
+    "slides",
+    "deck",
+    "design-system",
+    "branding",
+    "pptx",
+    "pdf"
+  ]
+}

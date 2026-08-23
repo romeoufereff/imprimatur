@@ -1,0 +1,30 @@
+{
+  "type": "process",
+  "width": 1100,
+  "height": 220,
+  "background": "#FFFFFF",
+  "start_x": 40,
+  "y": 60,
+  "step_w": 235,
+  "step_h": 100,
+  "notch": 30,
+  "gap": 6,
+  "steps": [
+    {
+      "label": "Discover",
+      "icon": "search"
+    },
+    {
+      "label": "Design",
+      "icon": "pencil-ruler"
+    },
+    {
+      "label": "Build",
+      "icon": "hammer"
+    },
+    {
+      "label": "Launch",
+      "icon": "rocket"
+    }
+  ]
+}

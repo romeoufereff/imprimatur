@@ -1,0 +1,99 @@
+{
+  "type": "roadmap",
+  "width": 1200,
+  "height": 480,
+  "background": "#FFFFFF",
+  "corner": 8,
+  "origin": [
+    40,
+    70
+  ],
+  "lane_height": 90,
+  "col_width": 240,
+  "lane_label_width": 150,
+  "lanes": [
+    "Platform",
+    "Mobile",
+    "Data"
+  ],
+  "columns": [
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4"
+  ],
+  "items": [
+    {
+      "lane": "Platform",
+      "col": 0,
+      "span": 2,
+      "label": "Auth revamp"
+    },
+    {
+      "lane": "Platform",
+      "col": 2,
+      "span": 2,
+      "label": "API v2",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "lane": "Mobile",
+      "col": 1,
+      "span": 1,
+      "label": "iOS v3"
+    },
+    {
+      "lane": "Mobile",
+      "col": 2,
+      "span": 2,
+      "label": "Android parity",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "lane": "Data",
+      "col": 0,
+      "span": 1,
+      "label": "Warehouse"
+    },
+    {
+      "lane": "Data",
+      "col": 1,
+      "span": 3,
+      "label": "ML pipeline",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    }
+  ]
+}

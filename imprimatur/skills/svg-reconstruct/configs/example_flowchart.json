@@ -1,0 +1,57 @@
+{
+  "type": "flowchart",
+  "width": 1000,
+  "height": 600,
+  "nodes": [
+    {
+      "id": "a",
+      "x": 80,
+      "y": 250,
+      "w": 160,
+      "h": 70,
+      "label": "Start",
+      "shape": "rounded",
+      "text_color": "#fff",
+      "icon": "play"
+    },
+    {
+      "id": "b",
+      "x": 400,
+      "y": 250,
+      "w": 160,
+      "h": 70,
+      "label": "Decide",
+      "shape": "diamond",
+      "color": "role:accent",
+      "text_color": "#fff"
+    },
+    {
+      "id": "c",
+      "x": 720,
+      "y": 250,
+      "w": 160,
+      "h": 70,
+      "label": "Done",
+      "shape": "rounded",
+      "color": "role:deep",
+      "text_color": "#fff",
+      "icon": "check-circle"
+    }
+  ],
+  "edges": [
+    {
+      "from": "a",
+      "to": "b",
+      "style": "elbow",
+      "arrow": true
+    },
+    {
+      "from": "b",
+      "to": "c",
+      "style": "elbow",
+      "label": "yes",
+      "arrow": true
+    }
+  ],
+  "corner": 10
+}

@@ -1,0 +1,59 @@
+{
+  "type": "donut",
+  "width": 1200,
+  "height": 1160,
+  "background": null,
+  "center": [600, 580],
+  "r_inner": 225,
+  "r_outer": 440,
+  "corner": 26,
+  "hub": {
+    "label": "DATA",
+    "radius": 185,
+    "gradient": ["role:accent", "role:deep"],
+    "font_size": 56,
+    "color": "#FFFFFF"
+  },
+  "segments": [
+    {
+      "start": -31, "end": 31,
+      "label": {
+        "lines": [
+          { "text": "Measurable", "radius": 370, "size": 32 },
+          { "text": "Value", "radius": 320, "size": 32 }
+        ]
+      },
+      "icon": { "name": "bar-chart-trend", "size": 58, "radius": 270 }
+    },
+    {
+      "start": 41, "end": 103,
+      "label": {
+        "lines": [
+          { "text": "Knowledge", "radius": 365, "size": 34 },
+          { "text": "of SMEs", "radius": 320, "size": 20 }
+        ]
+      },
+      "icon": { "name": "lightbulb-rays", "size": 58, "radius": 268 }
+    },
+    {
+      "start": 113, "end": 175,
+      "label": { "text": "Ownership", "radius": 350, "size": 34 },
+      "icon": { "name": "hands-cradling-person", "size": 58, "radius": 268 }
+    },
+    {
+      "start": 185, "end": 247,
+      "label": { "text": "Governance", "radius": 350, "size": 34 },
+      "icon": { "name": "shield-people", "size": 58, "radius": 268 }
+    },
+    {
+      "start": 257, "end": 319,
+      "label": {
+        "lines": [
+          { "text": "User", "radius": 370, "size": 32 },
+          { "text": "Persona", "radius": 320, "size": 32 }
+        ]
+      },
+      "icon": { "name": "user-badge-filled", "size": 58, "radius": 270 }
+    }
+  ]
+}

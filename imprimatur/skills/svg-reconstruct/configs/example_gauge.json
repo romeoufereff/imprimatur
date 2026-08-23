@@ -1,0 +1,21 @@
+{
+  "type": "gauge",
+  "width": 500,
+  "height": 400,
+  "background": "#FFFFFF",
+  "center": [
+    250,
+    240
+  ],
+  "r_inner": 120,
+  "r_outer": 165,
+  "start_angle": -120,
+  "end_angle": 120,
+  "min": 0,
+  "max": 100,
+  "value": 72,
+  "track_color": "role:tint",
+  "display": "72%",
+  "value_size": 54,
+  "subtitle": "Completion"
+}

@@ -1,0 +1,23 @@
+[
+  {"query": "ok so I need to pitch our data platform work to the Sandoz steering committee on thursday. mixed audience, some engineers some execs. probably 10-12 slides? I've got a rough doc with the numbers if that helps", "should_trigger": true},
+  {"query": "put together a capability brief for the analytics practice — the kind of thing we hand a client who asks 'what do you actually do'. 8ish slides, needs to look proper not thrown together", "should_trigger": true},
+  {"query": "I have to present Q3 delivery status to the account team monday. 6 slides max, internal, nothing fancy — just needs to be on-brand and not embarrassing", "should_trigger": true},
+  {"query": "can you turn ~/Work/Northwind/discovery-notes.md into a proper client-facing presentation? it's the findings from the 3-week discovery, needs a recommendation section at the end", "should_trigger": true},
+  {"query": "build me an executive readout for the migration programme. board-level, so short. must cover the risk position and the ask.", "should_trigger": true},
+  {"query": "we're going into a tender next week and I need a proposal deck. 12 slides, needs the methodology, the team, the timeline and pricing. can you drive it end to end and let me review before it goes out", "should_trigger": true},
+  {"query": "make slides out of this. it's a case study — client had a legacy warehouse, we moved them to Databricks, cut their batch window from 9h to 40min", "should_trigger": true},
+  {"query": "I need something for the partner meeting that doesn't look like every other consulting deck. same content as usual but I'm tired of the wall of cards thing", "should_trigger": true},
+  {"query": "prepare a presentation for the client kickoff — agenda, team intros, ways of working, the first 90 days. on brand please", "should_trigger": true},
+
+  {"query": "read Q4_Board_Pack_FINAL_v3.pptx in my downloads and pull out every number that mentions headcount. I need them in a table, don't care how it looks", "should_trigger": false},
+  {"query": "here's the client's brand guidelines PDF (Northwind_Brand_2025.pdf). can you work out what their actual colours and type scale are so we can use them properly", "should_trigger": false},
+  {"query": "build me an HTML dashboard showing our CodeMie usage by team. dark theme, needs a leaderboard and a spend chart", "should_trigger": false},
+  {"query": "the donut chart on slide 8 of the deck we did last month looks wrong — the labels are clipping the segments. can you rebuild just that diagram", "should_trigger": false},
+  {"query": "write me a one-page summary of the engagement for the MSA appendix. word doc, formal, no graphics", "should_trigger": false},
+  {"query": "export the deck in ~/Work/Sandoz/Slides/platform-pitch/ to PDF. it's already reviewed and signed off, I just need the file", "should_trigger": false},
+  {"query": "our slides keep failing the brand check on contrast. can you look at scripts/check_contrast.py and work out why it flags text over gradients", "should_trigger": false},
+  {"query": "i need to send the client a summary email of what we agreed in the workshop. bullet points, friendly but professional", "should_trigger": false},
+  {"query": "can you review this SoW before I send it? mainly worried about the assumptions section and whether the exit clauses are too loose", "should_trigger": false},
+  {"query": "set up a new design-system pack for Acme so we can start doing their decks properly. I've got their master template as a potx", "should_trigger": false},
+  {"query": "what's the difference between a capability brief and an executive readout? just explaining it to a junior", "should_trigger": false}
+]

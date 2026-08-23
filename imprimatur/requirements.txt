@@ -1,0 +1,25 @@
+# Imprimatur engine — Python dependencies.
+# Python 3.10+ is required: two scripts use PEP 604 unions (str | None) in runtime
+# annotations without `from __future__ import annotations`, so 3.9 raises at import.
+
+playwright>=1.40      # renders slides for the layout, contrast and export checks
+python-pptx>=0.6.23   # native-shape PPTX export
+Pillow>=10.0          # image handling in exports and SVG rasterisation
+pypdf>=4.0            # merges the per-slide PDFs into one deck
+                      #   (batch_convert.py imports it, falling back to the
+                      #    older PyPDF2 name; neither was ever listed here,
+                      #    so the merge step failed on a clean install)
+numpy>=1.24           # geometry maths in the SVG builder
+
+# Optional. svg-reconstruct falls back to Playwright rasterisation without it.
+# cairosvg>=2.7
+
+# After installing, fetch the browser binaries Playwright drives:
+#   python3 -m playwright install chromium webkit
+# Chromium runs the layout/overflow checks and the PDF export; WebKit is the default
+# for review renders because it catches SVG and gradient bugs Chromium tolerates.
+
+
+# design-system-forge — reads brand artefacts to build a pack.
+python-pptx>=0.6.23   # reads .pptx/.potx themes, shapes and text runs
+pdfplumber>=0.11      # reads PDF vector fills and text spans (fonts, sizes, colours)

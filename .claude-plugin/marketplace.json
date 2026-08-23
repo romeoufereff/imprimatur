@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "imprimatur",
+  "description": "Brand-enforcing deck pipeline: agentic narrative, design and critique, mechanical brand audits, a visual review gate, and PDF/PPTX export.",
+  "owner": {
+    "name": "Roman Iuferev"
+  },
+  "plugins": [
+    {
+      "name": "imprimatur",
+      "source": "./imprimatur",
+      "category": "design",
+      "description": "Let it be printed. A pipeline for branded presentation decks: brief intake, narrative, slide design, brand and design audits, a visual review gate, and PDF/PPTX export. Nothing ships until it passes the design-system pack's rules. Includes the forge that builds a pack from a client's brand deck."
+    }
+  ]
+}

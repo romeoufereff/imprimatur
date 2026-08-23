@@ -1,0 +1,61 @@
+{
+  "type": "matrix",
+  "width": 700,
+  "height": 700,
+  "background": "#FFFFFF",
+  "origin": [
+    90,
+    60
+  ],
+  "size": 520,
+  "x_axis": "Effort",
+  "y_axis": "Impact",
+  "quadrants": [
+    {
+      "label": "Quick Wins",
+      "color": "role:tint"
+    },
+    {
+      "label": "Major Projects",
+      "color": "role:tint"
+    },
+    {
+      "label": "Fill-ins",
+      "color": "#F5F5F5"
+    },
+    {
+      "label": "Thankless Tasks",
+      "color": "#F5F5F5"
+    }
+  ],
+  "items": [
+    {
+      "label": "Onboarding",
+      "x": 0.2,
+      "y": 0.85,
+      "color": "role:primary-mid",
+      "r": 10
+    },
+    {
+      "label": "Search v2",
+      "x": 0.75,
+      "y": 0.8,
+      "color": "role:accent",
+      "r": 10
+    },
+    {
+      "label": "Dark mode",
+      "x": 0.25,
+      "y": 0.3,
+      "color": "role:primary",
+      "r": 9
+    },
+    {
+      "label": "Legacy fix",
+      "x": 0.8,
+      "y": 0.25,
+      "color": "role:deep",
+      "r": 9
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "type": "kpi_cards",
+  "width": 1100,
+  "height": 260,
+  "background": "#F5F5F5",
+  "origin": [
+    40,
+    50
+  ],
+  "grid": {
+    "cols": 4,
+    "gap": 24
+  },
+  "card": {
+    "w": 240,
+    "h": 160,
+    "corner": 16
+  },
+  "cards": [
+    {
+      "value": "$1.2M",
+      "label": "Revenue",
+      "icon": "dollar-sign",
+      "delta": "+12%",
+      "stops": [
+        [
+          "0%",
+          "role:primary-mid",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "value": "8,430",
+      "label": "Active Users",
+      "icon": "users",
+      "delta": "+5%",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "value": "94%",
+      "label": "Retention",
+      "icon": "heart",
+      "delta": "-2%",
+      "stops": [
+        [
+          "0%",
+          "role:accent",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ]
+    },
+    {
+      "value": "1.8s",
+      "label": "Load Time",
+      "icon": "gauge",
+      "delta": "+8%",
+      "color": "#FFFFFF",
+      "text_color": "#333"
+    }
+  ]
+}

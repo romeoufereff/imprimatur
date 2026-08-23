@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Game Studio Deck System Slide</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'gs-primary': '#C40F4C',
+        'gs-primary-mid': '#E8175D',
+        'gs-accent': '#4F31D9',
+        'gs-deep': '#0A1026',
+        'gs-support-1': '#D18A00',
+        'gs-support-2': '#00A3AE',
+        'gs-ink': '#0A1026',
+        'gs-body': '#1B2347',
+        'gs-muted': '#5B6486',
+        'gs-muted-soft': '#9AA1BE',
+        'gs-rule': '#D9DCEA',
+        'gs-tint': '#EDEFF7',
+        'gs-surface': '#F6F7FB',
+        'gs-white': '#ffffff',
+        'gs-viz-rose': '#E8175D',
+        'gs-viz-amber': '#FFB000',
+        'gs-viz-cyan': '#00D3E0',
+        'gs-viz-violet': '#6B4DFF',
+        'gs-viz-lime': '#B6F02E',
+        'gs-viz-green': '#12B76A',
+        'gs-viz-rose-soft': '#FF7FA6',
+      },
+
+      fontFamily: {
+        gs: ["Archivo", "system-ui", "-apple-system", "sans-serif"],
+      },
+
+      fontSize: {
+        'gs-display': ['132px', { lineHeight: '0.95', fontWeight: '800' }],
+        'gs-section': ['132px', { lineHeight: '1.0', fontWeight: '700' }],
+        'gs-title': ['84px', { lineHeight: '1.05', fontWeight: '700' }],
+        'gs-h2': ['44px', { lineHeight: '1.15', fontWeight: '600' }],
+        'gs-h3': ['38px', { lineHeight: '1.2', fontWeight: '600' }],
+        'gs-metric': ['132px', { lineHeight: '1.0', fontWeight: '800' }],
+        'gs-lead': ['28px', { lineHeight: '1.45', fontWeight: '400' }],
+        'gs-subhead': ['38px', { lineHeight: '1.2', fontWeight: '600' }],
+        'gs-body-sm': ['22px', { lineHeight: '1.45', fontWeight: '400' }],
+        'gs-label': ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        'gs-eyebrow': ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        'gs-caption': ['22px', { lineHeight: '1.45', fontWeight: '400' }],
+      },
+
+      letterSpacing: {
+        'gs-eyebrow': '0.14em',
+        'gs-label': '0.08em',
+      },
+
+      borderRadius: {
+        'gs-sm': '6px',
+        'gs-md': '10px',
+        'gs-lg': '16px',
+      },
+    },
+  },
+};
+</script>
+
+<style>
+  html, body {
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #slide {
+    width:1920px; height:1080px; position:relative; overflow:hidden;
+    font-family:Archivo, system-ui, -apple-system, sans-serif;
+    flex-shrink:0;
+  }
+  /* transform-origin defaults to center — correct for flex centering on html/body */
+</style>
+</head>
+<body>
+
+<div id="slide" data-template="02-section" class="bg-gs-primary-mid">
+
+  <div class="absolute left-[96px] bottom-[236px] text-gs-display font-gs font-extrabold text-gs-white opacity-25 leading-none">02</div>
+
+  <div class="absolute left-[480px] top-[420px] w-[1150px] flex flex-col gap-[20px]">
+    <span class="text-gs-eyebrow text-gs-white uppercase tracking-gs-eyebrow font-bold"
+          style="font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:700;">Section</span>
+    <h1 class="font-gs font-bold text-gs-title text-gs-white leading-none">The market</h1>
+    <p class="text-gs-lead text-gs-white opacity-90" style="font-family:'IBM Plex Sans',system-ui,sans-serif;">Where run-based games sit in 2026.</p>
+  </div>
+
+  <!-- ── END BODY ─────────────────────────────────────── -->
+
+  <!-- ── Footer chrome — DO NOT EDIT ───────────────────────── -->
+  <div class="absolute bottom-[24px] right-[80px] flex items-center gap-6
+              text-[20px] text-gs-white font-gs opacity-70">
+    <span></span>
+    <span class="font-bold text-gs-white" id="page-number">1</span>
+  </div>
+
+</div>
+
+<!-- ── Canvas scaler — keeps 1920×1080 at any viewport size ── -->
+<script>
+  (function(){ const s=document.getElementById('slide');
+    function fit(){
+      const r=Math.min(window.innerWidth/1920, window.innerHeight/1080);
+      s.style.width='1920px';
+      s.style.height='1080px';
+      s.style.transformOrigin='center center';
+      s.style.transform='scale('+r+')';
+      document.documentElement.style.overflow='hidden';
+      document.body.style.overflow='hidden';
+    }
+    fit(); window.addEventListener('resize',fit); })();
+</script>
+
+</body>
+</html>

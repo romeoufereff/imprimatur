@@ -1,0 +1,16 @@
+[project]
+name = "svgkit"
+version = "0.1.0"
+description = "Reusable parametric SVG reconstruction for the deck-designer flow"
+requires-python = ">=3.10"
+# Playwright is the primary render/verify path (already a dependency of
+# the deck pipeline via check_overflow.py); Pillow+numpy drive the diff.
+# cairosvg is optional — only needed if Playwright isn't available.
+dependencies = ["Pillow>=10.0", "numpy>=1.24", "playwright>=1.40"]
+
+[project.optional-dependencies]
+cairosvg = ["cairosvg>=2.7"]
+test = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["svgkit*", "recipes*"]

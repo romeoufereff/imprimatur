@@ -1,0 +1,124 @@
+{
+  "type": "org_chart",
+  "width": 1000,
+  "height": 560,
+  "background": "#FFFFFF",
+  "corner": 10,
+  "nodes": [
+    {
+      "id": "ceo",
+      "x": 420,
+      "y": 40,
+      "w": 160,
+      "h": 72,
+      "label": "CEO",
+      "role": "Jane Doe",
+      "stops": [
+        [
+          "0%",
+          "role:accent",
+          1
+        ],
+        [
+          "100%",
+          "role:accent",
+          1
+        ]
+      ],
+      "text_color": "#FFFFFF"
+    },
+    {
+      "id": "cto",
+      "x": 180,
+      "y": 220,
+      "w": 160,
+      "h": 72,
+      "label": "CTO",
+      "role": "A. Smith",
+      "parent": "ceo",
+      "stops": [
+        [
+          "0%",
+          "role:primary-mid",
+          1
+        ],
+        [
+          "100%",
+          "role:primary-mid",
+          1
+        ]
+      ],
+      "text_color": "#FFFFFF"
+    },
+    {
+      "id": "cfo",
+      "x": 420,
+      "y": 220,
+      "w": 160,
+      "h": 72,
+      "label": "CFO",
+      "role": "R. Lee",
+      "parent": "ceo",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ],
+      "text_color": "#FFFFFF"
+    },
+    {
+      "id": "cmo",
+      "x": 660,
+      "y": 220,
+      "w": 160,
+      "h": 72,
+      "label": "CMO",
+      "role": "M. Ito",
+      "parent": "ceo",
+      "stops": [
+        [
+          "0%",
+          "role:primary",
+          1
+        ],
+        [
+          "100%",
+          "role:deep",
+          1
+        ]
+      ],
+      "text_color": "#FFFFFF"
+    },
+    {
+      "id": "eng1",
+      "x": 100,
+      "y": 400,
+      "w": 150,
+      "h": 66,
+      "label": "Eng Lead",
+      "role": "K. Park",
+      "parent": "cto",
+      "color": "role:tint",
+      "text_color": "#333"
+    },
+    {
+      "id": "eng2",
+      "x": 270,
+      "y": 400,
+      "w": 150,
+      "h": 66,
+      "label": "QA Lead",
+      "role": "S. Roy",
+      "parent": "cto",
+      "color": "role:tint",
+      "text_color": "#333"
+    }
+  ]
+}

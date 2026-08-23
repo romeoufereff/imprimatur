@@ -1,0 +1,26 @@
+{
+  "type": "pyramid",
+  "width": 720,
+  "height": 560,
+  "background": "#FFFFFF",
+  "center_x": 360,
+  "top": 50,
+  "band_height": 90,
+  "gap": 6,
+  "apex_width": 60,
+  "base_width": 560,
+  "levels": [
+    {
+      "label": "Vision"
+    },
+    {
+      "label": "Strategy"
+    },
+    {
+      "label": "Execution"
+    },
+    {
+      "label": "Operations"
+    }
+  ]
+}
