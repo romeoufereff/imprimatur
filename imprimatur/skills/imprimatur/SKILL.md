@@ -30,7 +30,7 @@ invoke it:
 
 | Kind | What it is | How you use it |
 |---|---|---|
-| **Agents** — `deck-narrative`, `deck-designer`, `design-crit`, `brand-audit` | The judgment-bearing stages. Each is a subagent definition in `{PLUGIN}/agents/`. | `Agent` tool with `subagent_type`, spawned **once per deck** and continued per slide via `SendMessage` |
+| **Agents** — `deck-narrative`, `deck-designer`, `design-crit`, `brand-audit` | The judgment-bearing stages. Each is a subagent definition in `{PLUGIN}/agents/`. | `Agent` tool with `subagent_type`, spawned **once per deck** with the full batch (all N slides) in its initial message, reporting back once when the batch is done; `SendMessage` continuation is used only for single-slide revision loops |
 | **Skills** — `deck-review`, `pdf-export`, `pptx-export`, `svg-reconstruct`, `design-system-forge` | Script-driven capabilities. Each is a real skill at `{PLUGIN}/skills/<name>/`. | Read its `SKILL.md` and run its scripts, or let the user invoke it directly |
 | **Scripts** — `validate`, `check_contrast`, `check_overflow`, `check_paint`, `qa`, … | The mechanical checks, at `{PLUGIN}/scripts/`. | Run them; several already run for you via hooks |
 
@@ -76,12 +76,14 @@ YOU: Deck Orchestrator
   ├─→ 1. Intake & Diagnosis (ask clarifying questions)
   ├─→ 2. Structure Planning (deck skeleton)
   ├─→ 3. Narrative        (AGENT deck-narrative, one call)
-  ├─→ 4. Design           (AGENT deck-designer — ONE, continued per slide via
-  │                        SendMessage; never a script writing multiple slides)
-  ├─→ 5. Audit            (hook runs the mechanical suite on every Write;
-  │                        AGENT brand-audit for the judgment checks no script does;
-  │                        AGENT design-crit — ONE, continued per slide, whose
-  │                        final message doubles as the deck-level pass)
+  ├─→ 4. Design           (AGENT deck-designer — ONE spawn, all N briefs up front,
+  │                        works the whole batch itself, one report at the end;
+  │                        never a script writing multiple slides)
+  ├─→ 5. Audit            (hook runs the mechanical suite on every Write, inside
+  │                        the designer's batch; AGENT brand-audit — ONE spawn,
+  │                        whole batch, for the judgment checks no script does;
+  │                        AGENT design-crit — ONE spawn, whole batch, whose
+  │                        one report doubles as the deck-level pass)
   ├─→ 6. Revision Loops   (feedback → SendMessage the designer agent → hook re-check)
   ├─→ 7. Deck Assembly    (index.html + all slides)
   ├─→ 8. HTML Preview     (you: http.server + validate + check_overflow)
@@ -338,46 +340,57 @@ You don't edit these — you accept them as the source of truth for content stra
 
 ### 4. DESIGN COORDINATION
 
-**Spawn the designer once per deck, then continue the same agent per slide — never
+**Spawn the designer once per deck with the full batch of slide briefs, let it work
+through all N slides itself, and only hear from it again when the batch is done — never
 generate slide HTML yourself, and never let one agent invocation write more than one
 slide's file.**
 
-This is a deliberate architecture, not a convenience choice. The failure mode it exists
-to prevent: on at least one real deck, the orchestrating session collapsed "hand a brief
-to the designer, wait for one slide, repeat" into writing a single script that
-string-templated all N slides in one pass. That produced inconsistent accent colors
-across slides and a bespoke SVG bug that silently rendered invisible — both defects a
-real per-slide design pass would very likely have caught, because they only became
-obvious once someone was looking at one slide at a time with actual design judgment,
-not generating six at once from a template. A prose instruction not to do this failed
-last time it mattered — so the pipeline now enforces it two ways: mechanically, via a
-`PreToolUse` hook that blocks any `Bash` command shaped like a script writing a slide
-file (`block_batch_slide_write.py` — slide HTML may only be created via the `Write`/`Edit`
-tool), and architecturally, via the agent-continuation pattern below.
+This is a deliberate architecture, not a convenience choice, and it sits on top of a
+lesson from a real failure. On at least one real deck, the orchestrating session collapsed
+"hand a brief to the designer, get back one slide, repeat" into writing a single script
+that string-templated all N slides in one pass. That produced inconsistent accent colors
+across slides and a bespoke SVG bug that silently rendered invisible — both defects a real
+per-slide design pass would very likely have caught, because they only became obvious once
+someone was looking at one slide at a time with actual design judgment, not generating six
+at once from a template. The fix for that failure was never "make the orchestrator broker
+every slide" — it was "never let one tool call produce more than one slide." Those are
+different constraints, and only the second one actually needs enforcing. A prose
+instruction alone failed last time it mattered, so it is now enforced mechanically: a
+`PreToolUse` hook blocks any `Bash` command shaped like a script writing a slide file
+(`block_batch_slide_write.py` — slide HTML may only be created via the `Write`/`Edit`
+tool, one file per call). That hook holds regardless of how many slides the designer
+agent works through in its own sequence of turns — so the orchestrator no longer needs to
+re-invoke it after every single slide just to keep per-slide judgment intact.
 
 **Pattern:**
 1. **Spawn one `deck-designer` agent** (`Agent` tool, `subagent_type: deck-designer`,
-   `run_in_background: false` — your next action always depends on its result) with the
-   deck-brief.md path, the dials, and the **first** slide's visual concept brief. Brief it
-   like the sub-skill's own SKILL.md describes: read the design system boot sequence, pick
-   a template, generate exactly one slide, write it with the `Write` tool, and report back
-   the template chosen, focal point, density count, and — critically — any **design
-   decision that will constrain later slides** (an accent color it's treating as the
-   deck's single accent, a template it used that shouldn't repeat).
-2. **Record those decisions** in `design-decisions.md` in the deck folder (template below)
-   — don't rely on the agent's own memory being the only place this lives; you need it
-   durable for resuming, and the design-crit agent needs to read it too.
-3. **Continue the same agent via `SendMessage`** with the next slide's brief, **plus a
-   pointer to `design-decisions.md`** so it inherits its own prior choices explicitly
-   rather than trusting recall. Repeat per slide. The agent's continuity is what buys you
-   consistency without re-deriving it from scratch each time — but the hook is what
-   guarantees it still writes one `Write` call per slide instead of batching once it
-   "knows" all the content.
-4. On a **revision loop**, continue the *same* designer agent (not a fresh one) with the
-   auditor's feedback for the specific slide — it already has full context of that slide
-   and the deck's accumulated decisions.
+   `run_in_background: false` — your next action always depends on its result) with
+   `deck-brief.md`'s path, the dials, the empty `design-decisions.md` path, and **every**
+   slide's visual concept brief for this deck in one message (a numbered list, slide 1
+   through N). Brief it like the sub-skill's own SKILL.md describes: read the design
+   system boot sequence once, then generate the slides in order — one `Write` call per
+   slide, in its own turns, without waiting for you between them — locking cross-slide
+   decisions (accent color, templates used) as it goes by appending to
+   `design-decisions.md` itself and updating its own slide entries in `deck-state.json`
+   after each one, so a resumed session can tell how far a mid-batch run got even if
+   nothing comes back from the agent until the end.
+2. **Read its one final report** once the whole batch lands: every slide written, the
+   locked decisions, and — if it hit something a slide couldn't resolve alone (density
+   overflow, a brief that contradicts an earlier locked decision) — the specific
+   escalation per `references/escalation-and-errors.md`, raised as its own message rather
+   than silently working around it.
+3. **Re-read `design-decisions.md` and `deck-state.json`** after the batch completes to
+   refresh your own tracker from what the agent recorded — you're syncing your view of
+   its work, not re-deriving it turn by turn.
+4. On a **revision loop** (§6), continue the *same* designer agent (not a fresh one) with
+   the auditor's feedback for the specific slide — it already has full context of that
+   slide and the deck's accumulated decisions. This is the one place `SendMessage`
+   continuation still happens turn-by-turn, because a revision genuinely is a single-slide
+   conversation, not a batch.
 
-**`design-decisions.md` template** (create at deck-brief time, empty; designer appends):
+**`design-decisions.md` template** (create at deck-brief time, empty; designer appends
+to it directly as it works through the batch — this is now the agent's own running log,
+not something you transcribe on its behalf):
 ```markdown
 # Design Decisions — <Deck Title>
 
@@ -392,9 +405,10 @@ tool), and architecturally, via the agent-continuation pattern below.
 | 2 | 04-big-idea |
 ```
 
-**Track state** in `deck-state.json` as before — slide status now includes which agent
-turn produced it, so a resumed session knows whether to `SendMessage` an existing agent
-or spawn fresh:
+**Track state** in `deck-state.json` — during the batch, the *designer agent itself*
+updates each slide's entry the moment it writes that slide (not you, and not only at
+batch end), so an interrupted mid-batch run is still resumable. You re-sync your own
+tracker from the file once the agent reports the batch complete:
 ```
 | Slide | Brief Sent | Written | Hook QA | Design Crit | Status |
 |-------|---|---|---|---|---|
@@ -404,12 +418,15 @@ or spawn fresh:
 ```
 
 **Done When:**
-- [ ] One designer agent spawned and continued (via `SendMessage`) through all N slides —
-      not N separate spawns, and not a script writing multiple slides in one call
+- [ ] One designer agent spawned once with all N briefs in the initial message — not N
+      spawns, not N `SendMessage` round trips, and not a script writing multiple slides
+      in one call
 - [ ] Every slide file was written via the `Write`/`Edit` tool (the batch-write hook never fired)
-- [ ] `design-decisions.md` exists and reflects the locked accent/template choices
+- [ ] `design-decisions.md` exists and reflects the locked accent/template choices, written
+      by the designer agent itself
+- [ ] `deck-state.json` reflects all N slides as written (re-synced from what the agent recorded)
 - [ ] All slide HTML files received and accessible
-- [ ] Ready to send slides to design-crit
+- [ ] Ready to hand the whole batch to brand-audit
 
 ---
 
@@ -417,51 +434,63 @@ or spawn fresh:
 
 **Brand compliance is checked twice, by two different things.** Keep them straight:
 
-**(a) The mechanical half runs itself.** The moment the designer's `Write` call lands,
-`slide_write_check.py` (a `PostToolUse` hook) runs the full script suite (`validate.py`,
-`check_contrast.py`, `check_overflow.py`, `check_paint.py` — tokens, WCAG contrast, canvas
-bounds/collisions, and "did every declared stroke/fill actually render visible pixels") and
-prints the result. There is nothing to spawn or wait for: read the hook's output in the tool
-result, and if it FAILs, `SendMessage` the designer agent the exact violation before moving
-on. Never proceed to the judgment passes on a slide that hasn't mechanically passed.
+**(a) The mechanical half runs itself, throughout phase 4.** The moment each of the
+designer's `Write` calls lands — one per slide, across the batch — `slide_write_check.py`
+(a `PostToolUse` hook) runs the full script suite (`validate.py`, `check_contrast.py`,
+`check_overflow.py`, `check_paint.py` — tokens, WCAG contrast, canvas bounds/collisions,
+and "did every declared stroke/fill actually render visible pixels") and prints the
+result. There is nothing to spawn or wait for: the designer agent reads its own hook
+output as it goes and fixes a FAIL before moving to the next slide in the batch, the same
+way it always did — this per-slide mechanical loop lives *inside* the designer's batch run,
+not as a separate stage you broker. By the time the designer's batch report reaches you,
+every slide it handed back has already cleared this pass (or it escalated instead of
+silently working around a FAIL). Never hand a batch to brand-audit that hasn't mechanically
+passed.
 
-**(b) The judgment half is the `brand-audit` agent.** Several compliance rules have no
-script behind them — logo placement and sizing, eyebrow format, template mapping, acronym
-expansion, and contrast over gradient backgrounds, which `check_contrast.py` explicitly
-lists for manual verification rather than judging. Spawn `brand-audit` once per deck and
-continue it per slide, the same pattern as the designer. It reads the hook's output first
-and treats those FAILs as its own, so you are not re-litigating what the scripts already
-settled.
+**(b) The judgment half is the `brand-audit` agent — spawned once, given the whole batch.**
+Several compliance rules have no script behind them — logo placement and sizing, eyebrow
+format, template mapping, acronym expansion, and contrast over gradient backgrounds, which
+`check_contrast.py` explicitly lists for manual verification rather than judging. Once
+phase 4 reports all N slides written and mechanically clean, spawn `brand-audit` **once**
+with all N slide file paths, `deck-brief.md`, and `design-decisions.md` in that single
+message. It works through the slides itself, in its own turns, treating each slide's
+already-passed hook output as settled rather than re-litigating it, and reports back
+**once** with a per-slide pass/fail table — not slide by slide back to you.
 
-**Design-crit is one agent, continued per slide — the same pattern as the designer.**
-1. **Spawn one `design-crit` agent** once brand-audit hook output is clean for slide 1.
-   Give it `deck-brief.md`, `design-decisions.md`, and slide 1's HTML + the narrative
-   context for what that slide is supposed to land.
-2. **Continue it via `SendMessage`** with each subsequent slide as it clears hook QA.
-   Because it's the same agent across the whole deck, by the time it reviews the last
-   slide it already holds full-sequence context — **that final review doubles as the
+**Design-crit is one agent, spawned once with the whole batch — the same pattern.**
+1. **Spawn one `design-crit` agent** once brand-audit's batch report comes back clean (or
+   with FAILs already routed back to the designer and re-cleared per the revision loop
+   below). Give it `deck-brief.md`, `design-decisions.md`, and all N slides' HTML + the
+   narrative context for what each slide is supposed to land, in one message.
+2. **Read its one final report.** Because it reviews the full sequence in one continuous
+   run, that same report already carries full-deck context — **it doubles as the
    deck-level crit pass** (§ below), with no separate call needed.
-3. Route its verdicts like any critique: PASS → next slide; major issues → `SendMessage`
-   the *designer* agent (not design-crit) with the feedback, re-generate, re-run hook QA,
-   then send the revised slide back to design-crit; minor suggestions → designer's call.
+3. Route its verdicts like any critique: PASS on a slide → nothing to do; major issues on
+   a slide → `SendMessage` the *designer* agent (not design-crit) with that slide's
+   feedback, re-generate, re-run hook QA, then send the revised slide back to design-crit
+   for a **targeted, single-slide** re-check (this is the one place per-slide
+   `SendMessage` continuation is still correct — see §6); minor suggestions → designer's
+   call.
 
-**Deck-level crit — the design-crit agent's last message, not a new step.**
+**Deck-level crit — part of the design-crit agent's one batch report, not a new step.**
 Per-slide review can't see deck-level failures: template-monotony past the VARIANCE
 threshold, breathers that got cut across revisions, a deck that ended up wall-of-cards
-even though every individual slide passed. Because the design-crit agent has seen every
-slide by the time the last one lands, ask it explicitly in that final message to also
-render a verdict against the VARIANCE dial and the deck-level tells in
-`references/anti-slop-tells.md` (template-monotony, wall-of-cards, no typographic hero
-moment) — using `design-decisions.md`'s template tally as its record of what's been used.
-A deck-level flag routes the same way: `SendMessage` the designer agent → swap a template
-variant or re-insert a breather → re-run hook QA + a targeted design-crit follow-up on
-just the touched slides.
+even though every individual slide passed. Because the design-crit agent reviews the
+entire sequence in a single run, ask it in the same spawn message to also render a verdict
+against the VARIANCE dial and the deck-level tells in `references/anti-slop-tells.md`
+(template-monotony, wall-of-cards, no typographic hero moment) — using
+`design-decisions.md`'s template tally as its record of what's been used. A deck-level
+flag routes the same way: `SendMessage` the designer agent → swap a template variant or
+re-insert a breather → re-run hook QA + a targeted design-crit follow-up on just the
+touched slides.
 
 **Done When:**
-- [ ] Every slide's hook QA output is PASS (or FAILs were routed back to the designer agent and re-checked)
-- [ ] The same design-crit agent reviewed every slide via `SendMessage` continuation — not N fresh spawns
-- [ ] Design crit complete for all slides (approved or feedback provided)
-- [ ] The design-crit agent's final message includes the deck-level verdict (VARIANCE dial + deck-level tells) — PASS or resolved
+- [ ] brand-audit spawned once with the full batch (all N slides in the initial message,
+      not N spawns and not N round trips) and its one report covers every slide
+- [ ] design-crit spawned once with the full batch, its one report covers every slide
+- [ ] Any FAILs or major issues were routed back to the designer agent for a targeted,
+      single-slide revision and re-checked
+- [ ] The design-crit agent's report includes the deck-level verdict (VARIANCE dial + deck-level tells) — PASS or resolved
 - [ ] Ready to enter revision loops if needed, or proceed to assembly if all pass
 
 ---
@@ -797,9 +826,9 @@ asked. When it does apply (the vault convention this pipeline was built against 
 | **Intake** | You | Raw brief | Structured brief | If brief is too vague, ask questions |
 | **Structure** | You | Structured brief | Approved skeleton | If user disagrees with structure, iterate |
 | **Narrative** | deck-narrative | Skeleton | Outline + briefs | If narrative lacks detail, push back |
-| **Design** | deck-designer | Briefs | Slides | If designer can't fit content, resolve with narrative |
-| **Audit** | brand-audit, design-crit | Slides | Pass/fail + feedback | If feedback is conflicting, ask for clarification |
-| **Revision** | deck-designer | Feedback | Revised slide | If designer disagrees with feedback, you mediate |
+| **Design** | deck-designer | All N briefs, one batch | All N slides, one report | If designer can't fit content, resolve with narrative |
+| **Audit** | brand-audit, design-crit | All N slides, one batch each | Pass/fail + feedback, one report each | If feedback is conflicting, ask for clarification |
+| **Revision** | deck-designer | Feedback (single slide, via `SendMessage`) | Revised slide | If designer disagrees with feedback, you mediate |
 | **Assembly** | You | Approved slides | Deck folder + index.html | If slides are missing, track them down |
 | **Preview** | You | Deck folder | HTML preview in browser | If preview has missing fonts/assets, fix paths |
 | **Review & Refine** | deck-review + User | Deck folder | slide-review.html → annotations.json → refined slides | If a comment conflicts with brand/brief, decline with reason and surface |
@@ -833,6 +862,16 @@ Use this to track progress and know which slides are blocking the deck.
 **Persist it.** Write `deck-state.json` into the deck folder at every phase boundary (schema
 and field notes: `references/state-tracking.md` §2). It exists so an interrupted session
 doesn't force a restart from intake.
+
+**During phases 4–5, the spawned agent owns the write, not you.** The designer,
+brand-audit, and design-crit agents each get the whole batch in one message and don't
+report back until they're done with all N slides — so if you waited to update
+`deck-state.json` until each agent's final report, an interruption mid-batch would look
+identical to "never started." Instead, each agent updates its own slide-level entries in
+`deck-state.json` itself, immediately after each slide it finishes, exactly the way it
+already updates `design-decisions.md` as it goes. You re-sync your in-chat tracker from
+the file once the agent's batch report lands — you're reading its work back, not
+transcribing it turn by turn.
 
 ### Resuming a deck
 

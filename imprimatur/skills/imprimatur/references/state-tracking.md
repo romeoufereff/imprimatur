@@ -49,11 +49,22 @@ Last updated: [timestamp]
 
 ---
 
-## 2 · deck-state.json (persisted at phase boundaries)
+## 2 · deck-state.json (persisted at phase boundaries — and mid-batch by the agents themselves)
 
 Write this file into the deck folder **at every phase boundary** and after any batch of
 slide-status changes. It is the resume point for an interrupted session — without it, a
 fresh session has to reverse-engineer progress from the files.
+
+**Phases 4–5 are the exception to "the orchestrator writes it."** The designer,
+brand-audit, and design-crit agents are each spawned once with the full N-slide batch and
+don't report back to the orchestrator until the whole batch is done — so during those
+phases, *the spawned agent* updates its own slide-level entries in `deck-state.json`
+directly, right after finishing each slide, the same way it appends to
+`design-decisions.md` as it goes. This is what keeps a mid-batch interruption resumable:
+if the designer agent gets cut off after slide 6 of 10, `deck-state.json` still shows
+slides 1–6 as written because the agent wrote that itself, not because the orchestrator
+happened to be watching. The orchestrator re-syncs its own in-chat tracker from the file
+once an agent's batch report lands, rather than writing the file turn by turn itself.
 
 ```json
 {
@@ -125,6 +136,9 @@ Failure handling lives with the workflow, not here:
 
 - [ ] Tracker re-printed after every slide status change
 - [ ] `deck-state.json` written at every phase boundary (and read back — verify side effects)
+- [ ] During phases 4–5, confirm the spawned agent is updating `deck-state.json` itself
+      per slide (not just at batch end) — check this the same way you'd check
+      `design-decisions.md` is being appended to
 - [ ] `updated_at` refreshed on every write; ISO8601 timestamps
 - [ ] `open_annotations` synced from `annotations.json` after each review round
 - [ ] `review.offered` set when the §9 harness is handed over (or `review.fast_track` when §1 fast-track is invoked)

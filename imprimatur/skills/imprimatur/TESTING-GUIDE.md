@@ -164,20 +164,24 @@ before declaring a pipeline-wide change done, not for every iteration.
 │  └─ Does it generate outline + visual concept briefs?
 │  └─ Are briefs complete (message, structure, key data, emphasis, audience, density)?
 │
-├─ Step 4: Invoke deck-designer (per slide)
-│  └─ Does it generate slide HTML?
-│  └─ Does it report: template, focal point, density, validation?
+├─ Step 4: Invoke deck-designer once, with all N slide briefs in one message (batch)
+│  └─ Does it work through all N slides itself, one Write call per slide, without the
+│     orchestrator brokering each one via SendMessage?
+│  └─ Does its one batch report cover every slide: template, focal point, density, validation?
 │  └─ Does it ONLY iterate on auditor feedback (not self-judge)?
+│  └─ Did it self-update design-decisions.md and deck-state.json per slide as it went?
 │
-├─ Step 5: Invoke brand-audit (per slide)
-│  └─ Does it run 9 checks?
-│  └─ Pass: move to design-crit
-│  └─ Fail: report violations to designer
+├─ Step 5: Invoke brand-audit once, with the whole batch (all N slides)
+│  └─ Does it run 9 checks on every slide and report back once, not slide by slide?
+│  └─ All pass: move the whole batch to design-crit
+│  └─ Any fail: report that slide's violations to designer (targeted single-slide revision)
 │
-├─ Step 6: Invoke design-crit (per slide)
-│  └─ Does it review 10 frameworks?
-│  └─ Approved: slide done
-│  └─ Issues: feedback to designer
+├─ Step 6: Invoke design-crit once, with the whole batch (all N slides)
+│  └─ Does it review 10 frameworks on every slide and report back once, not slide by slide?
+│  └─ Does that same report include the deck-level verdict (VARIANCE dial + anti-slop tells)?
+│  └─ Approved: batch done
+│  └─ Issues on a slide: feedback to designer (targeted single-slide revision, then a
+│     targeted re-check — not a full batch re-review)
 │
 ├─ Step 7: Orchestrator ASSEMBLY
 │  └─ Are all slides approved?
@@ -265,20 +269,24 @@ NARRATIVE PHASE
 [ ] Visual concept briefs are complete (all 5 fields)
 [ ] Briefs align with narrative strategy
 
-DESIGN PHASE (per slide)
-[ ] deck-designer generates slide HTML
-[ ] Generation report includes: template, focal point, density, validation
+DESIGN PHASE (one batch — designer spawned once with all N briefs)
+[ ] deck-designer generates all N slides' HTML in its own turns, one Write call each,
+    without the orchestrator brokering each slide
+[ ] One batch generation report covers every slide: template, focal point, density, validation
+[ ] design-decisions.md and deck-state.json were updated by the designer per slide, not
+    just at the end
 [ ] Designer does NOT self-critique
 
-BRAND AUDIT PHASE (per slide)
-[ ] All 9 checks run and reported
-[ ] Pass → move to design-crit
-[ ] Fail → violations reported with line numbers and fixes
+BRAND AUDIT PHASE (one batch — spawned once with all N slides)
+[ ] All 9 checks run on every slide; one report covers the whole batch
+[ ] All pass → move whole batch to design-crit
+[ ] Any fail → that slide's violations reported with line numbers and fixes (targeted revision)
 
-DESIGN CRIT PHASE (per slide)
-[ ] All 10 frameworks reviewed
+DESIGN CRIT PHASE (one batch — spawned once with all N slides)
+[ ] All 10 frameworks reviewed on every slide; one report covers the whole batch
+[ ] That report includes the deck-level verdict (VARIANCE dial + anti-slop tells)
 [ ] Feedback is specific and actionable
-[ ] Approved → slide done OR Issues → designer revises (max 2 revision loops)
+[ ] Approved → batch done OR Issues on a slide → designer revises that slide (max 2 revision loops)
 
 ASSEMBLY PHASE
 [ ] All slides approved
