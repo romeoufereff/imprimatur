@@ -30,7 +30,7 @@ invoke it:
 
 | Kind | What it is | How you use it |
 |---|---|---|
-| **Agents** — `deck-narrative`, `deck-designer`, `design-crit`, `brand-audit` | The judgment-bearing stages. Each is a subagent definition in `{PLUGIN}/agents/`. | `Agent` tool with `subagent_type`, spawned **once per deck** with the full batch (all N slides) in its initial message, reporting back once when the batch is done; `SendMessage` continuation is used only for single-slide revision loops |
+| **Agents** — `deck-narrative`, `deck-designer`, `design-crit`, `brand-audit` | The judgment-bearing stages. Each is a subagent definition in `{PLUGIN}/agents/`. | `Agent` tool with `subagent_type`, spawned with a batch of briefs in its initial message — the **whole deck in one spawn for ≤10 slides**; for larger decks, a **fresh agent every 4–6 slides** rather than one agent kept alive the whole way (see §4's agent-lifetime cap) — reporting back once when its batch/chunk is done; `SendMessage` continuation is used only for single-slide revision loops within that chunk's own agent |
 | **Skills** — `deck-review`, `pdf-export`, `pptx-export`, `svg-reconstruct`, `design-system-forge` | Script-driven capabilities. Each is a real skill at `{PLUGIN}/skills/<name>/`. | Read its `SKILL.md` and run its scripts, or let the user invoke it directly |
 | **Scripts** — `validate`, `check_contrast`, `check_overflow`, `check_paint`, `qa`, … | The mechanical checks, at `{PLUGIN}/scripts/`. | Run them; several already run for you via hooks |
 
@@ -76,9 +76,10 @@ YOU: Deck Orchestrator
   ├─→ 1. Intake & Diagnosis (ask clarifying questions)
   ├─→ 2. Structure Planning (deck skeleton)
   ├─→ 3. Narrative        (AGENT deck-narrative, one call)
-  ├─→ 4. Design           (AGENT deck-designer — ONE spawn, all N briefs up front,
-  │                        works the whole batch itself, one report at the end;
-  │                        never a script writing multiple slides)
+  ├─→ 4. Design           (AGENT deck-designer — one spawn with all N briefs for
+  │                        decks ≤10 slides; a fresh agent every 4-6 slides for
+  │                        larger decks; one report per spawn when its chunk is
+  │                        done; never a script writing multiple slides)
   ├─→ 5. Audit            (hook runs the mechanical suite on every Write, inside
   │                        the designer's batch; AGENT brand-audit — ONE spawn,
   │                        whole batch, for the judgment checks no script does;
@@ -162,6 +163,24 @@ Ask these questions **in order**, and only ask the ones you don't already have a
 extract text inline with `python-pptx` / `python-docx` (both installed); `markitdown` is
 **not** assumed to be present — check before reaching for it, rather than losing a round
 discovering it is missing.
+
+**External content vs. internal design mechanism — a boundary you hold for the whole
+pipeline, not just at intake.** Everything a deck needs falls into exactly one of two
+buckets, and they get sourced by different people. *External content* — client facts,
+logos, quotes, verified data, screenshots, the source materials above — the pack cannot
+possibly contain any of that, so gathering it is squarely your job. *Internal design
+mechanism* — which template a content shape maps to, whether the pack already ships a
+built-in component for it — is squarely the designer agent's job, because only it does
+the mandated full-file template read (`deck-designer.md`'s boot sequence) that actually
+proves a pack lacks something. On a real deck this line got crossed: a shallow
+`find -iname "*map*"` over the pack came up empty, and instead of asking the designer to
+confirm the pack had no matching component, the orchestrator pre-emptively fetched an
+external asset and handed it over — when the pack's own host template already had a
+complete, purpose-built native component for exactly that need, which the designer would
+have found doing the read it's already required to do. If you suspect the pack lacks
+something, say so to the designer and ask it to confirm by reading the candidate
+templates in full. Never assert the negative yourself and substitute an external asset
+in its place — that decision belongs to whoever actually read the pack.
 
 **Set the taste dials.** Don't ask the user to name them cold — *default them* from the
 answers above and surface for confirmation. See `references/taste-dials.md` for the full
@@ -340,57 +359,96 @@ You don't edit these — you accept them as the source of truth for content stra
 
 ### 4. DESIGN COORDINATION
 
-**Spawn the designer once per deck with the full batch of slide briefs, let it work
-through all N slides itself, and only hear from it again when the batch is done — never
-generate slide HTML yourself, and never let one agent invocation write more than one
-slide's file.**
+**Spawn the designer with a batch of slide briefs, let it work through that batch
+itself, and only hear from it again when the batch is done — never generate slide HTML
+yourself, never let one agent invocation write more than one slide's file, and — for
+decks over ~10 slides — never keep a single designer agent alive for the whole deck (see
+the agent-lifetime cap below).**
 
-This is a deliberate architecture, not a convenience choice, and it sits on top of a
-lesson from a real failure. On at least one real deck, the orchestrating session collapsed
-"hand a brief to the designer, get back one slide, repeat" into writing a single script
-that string-templated all N slides in one pass. That produced inconsistent accent colors
-across slides and a bespoke SVG bug that silently rendered invisible — both defects a real
-per-slide design pass would very likely have caught, because they only became obvious once
-someone was looking at one slide at a time with actual design judgment, not generating six
-at once from a template. The fix for that failure was never "make the orchestrator broker
-every slide" — it was "never let one tool call produce more than one slide." Those are
-different constraints, and only the second one actually needs enforcing. A prose
-instruction alone failed last time it mattered, so it is now enforced mechanically: a
-`PreToolUse` hook blocks any `Bash` command shaped like a script writing a slide file
-(`block_batch_slide_write.py` — slide HTML may only be created via the `Write`/`Edit`
-tool, one file per call). That hook holds regardless of how many slides the designer
-agent works through in its own sequence of turns — so the orchestrator no longer needs to
-re-invoke it after every single slide just to keep per-slide judgment intact.
+This is a deliberate architecture, not a convenience choice, and it sits on top of two
+lessons from real failures. On at least one real deck, the orchestrating session
+collapsed "hand a brief to the designer, get back one slide, repeat" into writing a
+single script that string-templated all N slides in one pass. That produced inconsistent
+accent colors across slides and a bespoke SVG bug that silently rendered invisible — both
+defects a real per-slide design pass would very likely have caught, because they only
+became obvious once someone was looking at one slide at a time with actual design
+judgment, not generating six at once from a template. The fix for that failure was never
+"make the orchestrator broker every slide" — it was "never let one tool call produce more
+than one slide." Those are different constraints, and only the second one actually needs
+enforcing. A prose instruction alone failed last time it mattered, so it is now enforced
+mechanically: a `PreToolUse` hook blocks any `Bash` command shaped like a script writing a
+slide file (`block_batch_slide_write.py` — slide HTML may only be created via the
+`Write`/`Edit` tool, one file per call). That hook holds regardless of how many slides the
+designer agent works through in its own sequence of turns — so the orchestrator no longer
+needs to re-invoke it after every single slide just to keep per-slide judgment intact.
+
+**Agent-lifetime cap (decks over ~10 slides).** A single agent kept alive for an entire
+23-slide deck is where every session crash happened on a real production run (spend
+limit / host sleep) — never on a freshly spawned agent. That is not a coincidence: every
+internal tool-use turn an agent takes resends its own accumulating transcript, so cost
+per turn grows with how many slides it has already generated in this life, and for a
+20+ slide deck that compounds into real money and real fragility long before slide N.
+The fix is to stop treating "one agent per deck" as a fixed architecture and cap it: for
+decks over ~10 slides, deliberately **re-spawn a fresh `deck-designer` agent every 4–6
+slides** rather than keeping one agent alive throughout. A fresh agent's onboarding cost
+is bounded — read `deck-brief.md` + `design-decisions.md` + 2–3 already-written sample
+slides — instead of unbounded (replaying the full prior transcript on every turn). Decks
+of ≤10 slides don't need this; one spawn for the whole batch stays the simpler and
+cheaper choice there.
+
+**This only works if `design-decisions.md` is actually kept current, because it is now
+the resumption contract between chunks, not just a crash safety net.** A fresh agent
+picking up at slide 11 has no memory of slides 1–10 — it reconstructs the locked accent
+color, the template tally, and every cross-slide decision entirely from that file. On a
+real deck, a crashed agent's unlogged work caused a second agent to misread stale
+history and silently destroy a slide's content — the file said less than the agent had
+actually decided, and the next agent trusted the file over reality. **Never trust an
+agent's own claim that it logged a decision — read `design-decisions.md` back yourself**
+before spawning the next chunk's agent, the same way you already verify any other side
+effect. If the file is missing an entry the agent's report claims it wrote, treat that as
+the chunk not being fully done: have the same agent (not the next one) fix the log before
+you close out that chunk.
 
 **Pattern:**
-1. **Spawn one `deck-designer` agent** (`Agent` tool, `subagent_type: deck-designer`,
-   `run_in_background: false` — your next action always depends on its result) with
-   `deck-brief.md`'s path, the dials, the empty `design-decisions.md` path, and **every**
-   slide's visual concept brief for this deck in one message (a numbered list, slide 1
-   through N). Brief it like the sub-skill's own SKILL.md describes: read the design
-   system boot sequence once, then generate the slides in order — one `Write` call per
-   slide, in its own turns, without waiting for you between them — locking cross-slide
-   decisions (accent color, templates used) as it goes by appending to
-   `design-decisions.md` itself and updating its own slide entries in `deck-state.json`
-   after each one, so a resumed session can tell how far a mid-batch run got even if
-   nothing comes back from the agent until the end.
-2. **Read its one final report** once the whole batch lands: every slide written, the
-   locked decisions, and — if it hit something a slide couldn't resolve alone (density
-   overflow, a brief that contradicts an earlier locked decision) — the specific
-   escalation per `references/escalation-and-errors.md`, raised as its own message rather
-   than silently working around it.
-3. **Re-read `design-decisions.md` and `deck-state.json`** after the batch completes to
-   refresh your own tracker from what the agent recorded — you're syncing your view of
-   its work, not re-deriving it turn by turn.
-4. On a **revision loop** (§6), continue the *same* designer agent (not a fresh one) with
-   the auditor's feedback for the specific slide — it already has full context of that
-   slide and the deck's accumulated decisions. This is the one place `SendMessage`
-   continuation still happens turn-by-turn, because a revision genuinely is a single-slide
-   conversation, not a batch.
+1. **Decide the batch size** — the whole deck (all N briefs) in one spawn if N ≤ 10;
+   otherwise chunks of 4–6 slides, one fresh `deck-designer` agent per chunk.
+2. **Spawn one `deck-designer` agent per chunk** (`Agent` tool, `subagent_type:
+   deck-designer`, `run_in_background: false` — your next action always depends on its
+   result) with `deck-brief.md`'s path, the dials, `design-decisions.md`'s path, and
+   **every** slide brief in this chunk in one message (a numbered list). For chunk 2
+   onward, also point it at 2–3 already-written sample slides so it has concrete examples
+   of the locked decisions, not just the log's prose. Brief it like the sub-skill's own
+   SKILL.md describes: read the design system boot sequence once, then generate the
+   slides in order — one `Write` call per slide, in its own turns, without waiting for you
+   between them — locking cross-slide decisions (accent color, templates used) as it goes
+   by appending to `design-decisions.md` itself and updating its own slide entries in
+   `deck-state.json` after each one, so a resumed session can tell how far a mid-chunk run
+   got even if nothing comes back from the agent until the end.
+3. **Read its one final report** once the chunk lands: every slide written, the locked
+   decisions, and — if it hit something a slide couldn't resolve alone (density overflow,
+   a brief that contradicts an earlier locked decision) — the specific escalation per
+   `references/escalation-and-errors.md`, raised as its own message rather than silently
+   working around it.
+4. **Re-read `design-decisions.md` and `deck-state.json`** after each chunk completes —
+   both to refresh your own tracker from what the agent recorded, and to verify (per the
+   agent-lifetime cap above) that the log actually reflects what the report claims before
+   you spawn the next chunk's fresh agent on top of it.
+5. Repeat steps 1–4 for the next chunk until all N slides are written.
+6. On a **revision loop** (§6), continue the *current chunk's* designer agent (not a
+   fresh one, unless that agent's own chunk has already ended and a later chunk's agent
+   is now active) with the auditor's feedback for the specific slide — it already has
+   full context of that slide and the deck's accumulated decisions. This is the one place
+   `SendMessage` continuation still happens turn-by-turn, because a revision genuinely is
+   a single-slide conversation, not a batch. If the slide needing revision belongs to a
+   chunk whose agent has already finished and moved on, treat it like any fresh-agent
+   onboarding: spawn one with `design-decisions.md` + the slide in question, rather than
+   trying to resurrect a finished agent.
 
 **`design-decisions.md` template** (create at deck-brief time, empty; designer appends
 to it directly as it works through the batch — this is now the agent's own running log,
-not something you transcribe on its behalf):
+not something you transcribe on its behalf, and for decks over ~10 slides it is also the
+**only thing a fresh chunk's agent has to go on** — read it back rather than trusting a
+report that says it was updated):
 ```markdown
 # Design Decisions — <Deck Title>
 
@@ -418,12 +476,13 @@ tracker from the file once the agent reports the batch complete:
 ```
 
 **Done When:**
-- [ ] One designer agent spawned once with all N briefs in the initial message — not N
-      spawns, not N `SendMessage` round trips, and not a script writing multiple slides
-      in one call
+- [ ] Designer agent(s) spawned per the batch-size rule — one spawn with all N briefs for
+      ≤10-slide decks, or a fresh agent every 4–6 slides for larger ones — not N spawns,
+      not N `SendMessage` round trips, and not a script writing multiple slides in one call
 - [ ] Every slide file was written via the `Write`/`Edit` tool (the batch-write hook never fired)
 - [ ] `design-decisions.md` exists and reflects the locked accent/template choices, written
-      by the designer agent itself
+      by the designer agent itself, and you **read it back** to confirm it before spawning
+      each next chunk's agent on top of it (not just trusting the prior agent's report)
 - [ ] `deck-state.json` reflects all N slides as written (re-synced from what the agent recorded)
 - [ ] All slide HTML files received and accessible
 - [ ] Ready to hand the whole batch to brand-audit
@@ -518,6 +577,23 @@ Example: "Title reads as label ('Status Update'). Assertion would be: 'Q2 delive
 
 **Critical rule:** Major revisions loop through both audits. Minor tweaks can skip brand-audit 
 re-check (designer's call).
+
+**Batching independent fixes into one spawn.** This is a different lever from §4's
+agent-lifetime cap, and worth keeping the two straight. §4 bounds how long *one* designer
+agent stays alive across *sequential slide generation* — it fires regardless of how many
+issues exist. This one is about how many *pending fixes* go into a single spawn when
+several small, independent ones are queued at the same time — a batch of sweep findings,
+several open review-harness comments (§9) landing together. Only the orchestrator can
+make this call: it is the one place with visibility across the whole pending-fix queue, a
+view a spawned agent never has. When 2–4 fixes are on different slides (or non-conflicting
+regions of the same slide) with no contradictory intent between them, hand them to **one**
+designer spawn as a numbered list rather than spawning once per fix — each spawn re-pays
+the fixed cost of reading `deck-brief.md` + `design-decisions.md` from scratch, and that
+onboarding cost dominates when the fix itself is small (a contrast-token swap, a reworded
+label). Don't batch a fix serious enough to need its own focused revision loop, or two
+fixes that touch the same region with contradictory intents — batching is for volume, not
+for hard problems. The two levers compose: batch related small fixes together within a
+spawn, but still reset to a fresh agent at the §4 chunk boundary as the deck grows.
 
 **Done When:**
 - [ ] All audit feedback addressed (no outstanding issues)
@@ -675,8 +751,10 @@ through `deck-review` (see its SKILL.md for the full procedure).
    so its override drops out. Route each open comment through deck-review's
    **hybrid refine loop**: targeted asks (reword / resize / recolor / move / remove) become direct
    edits + a brand-audit re-check on the touched slide; structural asks (new layout, split slide,
-   add a visual, reorder) route back through deck-designer → brand-audit → design-crit. Mark each
-   annotation `resolved` (with a one-line note) or `declined` (with a reason).
+   add a visual, reorder) route back through deck-designer → brand-audit → design-crit. When
+   several structural asks land at once, batch the independent ones into a single designer spawn
+   per §6 **Batching independent fixes into one spawn**, rather than one spawn per comment. Mark
+   each annotation `resolved` (with a one-line note) or `declined` (with a reason).
 
 3. **Regenerate the harness** and ask the user to re-review. Loop until there are **zero open
    comments** and the user accepts. Before you call the deck review-clean,
@@ -826,7 +904,7 @@ asked. When it does apply (the vault convention this pipeline was built against 
 | **Intake** | You | Raw brief | Structured brief | If brief is too vague, ask questions |
 | **Structure** | You | Structured brief | Approved skeleton | If user disagrees with structure, iterate |
 | **Narrative** | deck-narrative | Skeleton | Outline + briefs | If narrative lacks detail, push back |
-| **Design** | deck-designer | All N briefs, one batch | All N slides, one report | If designer can't fit content, resolve with narrative |
+| **Design** | deck-designer | All N briefs in one batch (≤10 slides) or a 4–6-slide chunk per fresh agent (>10 slides) | All slides in the batch/chunk, one report each | If designer can't fit content, resolve with narrative |
 | **Audit** | brand-audit, design-crit | All N slides, one batch each | Pass/fail + feedback, one report each | If feedback is conflicting, ask for clarification |
 | **Revision** | deck-designer | Feedback (single slide, via `SendMessage`) | Revised slide | If designer disagrees with feedback, you mediate |
 | **Assembly** | You | Approved slides | Deck folder + index.html | If slides are missing, track them down |
@@ -864,14 +942,17 @@ and field notes: `references/state-tracking.md` §2). It exists so an interrupte
 doesn't force a restart from intake.
 
 **During phases 4–5, the spawned agent owns the write, not you.** The designer,
-brand-audit, and design-crit agents each get the whole batch in one message and don't
-report back until they're done with all N slides — so if you waited to update
-`deck-state.json` until each agent's final report, an interruption mid-batch would look
-identical to "never started." Instead, each agent updates its own slide-level entries in
-`deck-state.json` itself, immediately after each slide it finishes, exactly the way it
-already updates `design-decisions.md` as it goes. You re-sync your in-chat tracker from
-the file once the agent's batch report lands — you're reading its work back, not
-transcribing it turn by turn.
+brand-audit, and design-crit agents each get a batch (the whole deck, or — for the
+designer on a >10-slide deck — a 4–6-slide chunk) in one message and don't report back
+until they're done with everything in it — so if you waited to update `deck-state.json`
+until each agent's final report, an interruption mid-batch would look identical to "never
+started." Instead, each agent updates its own slide-level entries in `deck-state.json`
+itself, immediately after each slide it finishes, exactly the way it already updates
+`design-decisions.md` as it goes. You re-sync your in-chat tracker from the file once the
+agent's batch report lands — you're reading its work back, not transcribing it turn by
+turn. **At a designer chunk boundary specifically, this read-back is not optional**: the
+next chunk's agent has no memory of the last one, so `design-decisions.md` and
+`deck-state.json` are the entire handoff — confirm they're current before spawning it.
 
 ### Resuming a deck
 

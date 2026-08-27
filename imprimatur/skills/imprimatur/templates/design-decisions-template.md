@@ -5,11 +5,22 @@ alongside `deck-brief.md`, before the designer agent writes slide 1. The **desig
 appends to it after every slide; the **design-crit agent** reads it before reviewing every
 slide.
 
-**Why this file exists, and why it isn't just the designer's own memory:** the designer
-agent is spawned once and continued via `SendMessage` across the whole deck, so in the
-common case it *does* remember its own earlier choices without needing a file. This file
-exists for the cases where that isn't enough on its own:
+**Why this file exists, and why it isn't just the designer's own memory:** for decks of
+10 or fewer slides, one designer agent handles the whole batch in its own sequence of
+turns, so in that case it *does* remember its own earlier choices without needing a file.
+But that's no longer the only case this file has to serve:
 
+- **Decks over ~10 slides get a fresh designer agent every 4–6 slides** (SKILL.md §4's
+  agent-lifetime cap — kept lean because cost-per-turn grows with an agent's own
+  accumulating transcript, and it's also where real session crashes happened). A chunk-2
+  agent has *zero* memory of chunk 1's choices — this file, plus 2–3 sample slides the
+  orchestrator points it at, is its entire onboarding. It is the **resumption contract
+  between chunks**, not an optional backup: if it isn't current, the next chunk's agent
+  has nothing correct to inherit and will re-decide (or contradict) earlier choices. This
+  is exactly how a real deck lost a slide's content — a crashed agent's unlogged work left
+  the file behind reality, and the next agent trusted the file over what had actually been
+  decided. The orchestrator reads this file back to confirm it, rather than trusting a
+  report that claims it was updated.
 - **Resuming a deck** in a new session — a fresh designer agent has no memory of a
   previous session's choices; this file is what lets it pick up consistently instead of
   re-deciding the accent color from scratch.

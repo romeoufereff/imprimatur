@@ -8,7 +8,7 @@ The pipeline has three kinds of component and they are invoked differently:
 
 | Kind | Where | How |
 |---|---|---|
-| **Agent** | `{PLUGIN}/agents/<name>.md` | `Agent` tool, `subagent_type: <name>` — spawned once, continued via `SendMessage` |
+| **Agent** | `{PLUGIN}/agents/<name>.md` | `Agent` tool, `subagent_type: <name>` — spawned with a batch, continued via `SendMessage` only for single-slide revision loops within that batch. `deck-designer` on decks >10 slides gets a fresh spawn per 4–6-slide chunk rather than one agent for the whole deck — see orchestrator SKILL.md §4 |
 | **Skill** | `{PLUGIN}/skills/<name>/SKILL.md` | Read the SKILL.md and run its scripts; the user can also invoke it directly |
 | **Script** | `{PLUGIN}/scripts/<name>.py` | Run it; several fire automatically via hooks |
 

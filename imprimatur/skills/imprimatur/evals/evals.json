@@ -140,6 +140,10 @@
       ],
       "complexity": "high",
       "estimated_slides": 10,
+      "cost_tracking": {
+        "expected_designer_spawns": 1,
+        "note": "10 slides is at the ≤10 threshold — single-batch spawn, no chunking. Record actual total_tokens/total_turns as the small-deck baseline for comparison against eval 11's chunked run."
+      },
       "files": []
     },
     {
@@ -158,6 +162,10 @@
       ],
       "complexity": "medium",
       "estimated_slides": 7,
+      "cost_tracking": {
+        "expected_designer_spawns": 1,
+        "note": "Below the ≤10 threshold — single-batch spawn."
+      },
       "files": []
     },
     {
@@ -177,13 +185,42 @@
       ],
       "complexity": "medium-high",
       "estimated_slides": 8,
+      "cost_tracking": {
+        "expected_designer_spawns": 1,
+        "note": "Below the ≤10 threshold — single-batch spawn."
+      },
+      "files": []
+    },
+    {
+      "id": 11,
+      "tier": "acceptance",
+      "name": "large-deck-chunked-designer",
+      "description": "20-slide Executive Readout — the acceptance eval that actually exercises the §4 agent-lifetime cap, since evals 7-9 all sit at or under the 10-slide threshold and never trigger chunking",
+      "prompt": "We need an Executive Readout for a data platform modernization program at a large retail client (fictional: 'Norstrand Retail'). Audience is C-suite plus a steering committee. 20 slides covering: situation, proposed solution, architecture, a phased rollout across 4 workstreams, risk mitigation, investment breakdown, a 12-month timeline, governance model, and closing with decisions and an ask. High variance — this needs real visual rhythm across 20 slides, not a wall of cards.",
+      "expected_output": "A complete 20-slide on-brand deck. Because slide count exceeds 10, phase 4 must run as multiple designer-agent spawns (4-6 slides each, ~4 chunks) rather than one continuous agent.",
+      "acceptance_criteria": [
+        "All 20 slides generated successfully",
+        "design-decisions.md shows entries spanning the full deck, not just the last chunk — confirms cross-chunk continuity held",
+        "Accent color and template-tally decisions are consistent from slide 1 through slide 20 (spot-check slide 2 against slide 18) — the exact defect the cap is meant to prevent if design-decisions.md goes stale between chunks",
+        "Brand audit passes on all slides",
+        "Design crit approves all slides AND the deck-level pass (variance dial, no template monotony) across the full 20 slides",
+        "Review gate: zero open annotations + explicit acceptance before pdf-export",
+        "PDF exports cleanly (page count == slide_count)"
+      ],
+      "complexity": "high",
+      "estimated_slides": 20,
+      "cost_tracking": {
+        "expected_designer_spawns": 4,
+        "note": "ceil(20/6)=4 chunks under the §4 cap. Record: total_tokens and total_turns for phase 4 as a whole (sum across all designer spawns), tokens/turns for the single largest spawn (should not dwarf the others — if one chunk's transcript is growing much faster than a fresh chunk's, the cap isn't resetting cost the way it's supposed to), and any crash/retry during phase 4. Compare the per-slide token cost here against eval 7's per-slide cost (10 slides, unchunked) — this is the number that should stay roughly flat as deck size grows instead of compounding, which is the whole point of the cap."
+      },
       "files": []
     }
   ],
   "test_instructions": {
     "stage_evals": "Run each stage eval in an isolated working folder (copy the listed files in). Grade with scripts where possible: qa.py for designer outputs, seeded-violations.json recall/precision for the audit eval, field-presence checks for narrative briefs. These are the evals to iterate on after any change to a sub-skill.",
     "acceptance_evals": "Invoke the orchestrator with the prompt as the user request and walk the full 10-phase pipeline (intake → structure → narrative → design → audits incl. deck-level crit → assembly → render → review gate → pdf-export). Run before declaring a pipeline-wide change done — not for every iteration.",
-    "success_definition": "Stage tier: all scripted assertions pass. Acceptance tier: all acceptance criteria met, designer never self-judges, review gate enforced."
+    "cost_tracking": "Every acceptance eval carries a `cost_tracking` field — record its metrics (total_tokens, total_turns, designer_agent_spawns, crashes/retries) for every acceptance run, not just eval 11. Performance here has historically been judged on output quality alone, with no signal on the cost curve as slide count grows — that blind spot is exactly what let a real production deck's per-turn cost compound unnoticed across 23 slides until it started crashing sessions. A run's `expected_designer_spawns` is a scripted check (count the Agent-tool spawns to the deck-designer subagent_type during phase 4 and compare); the token/turn totals are not scriptable from outside an agent's own transcript, so record them by hand from the session's usage summary after each acceptance run and keep a running log (e.g. a small table alongside this file) so a regression in the per-slide cost curve shows up across runs instead of silently drifting.",
+    "success_definition": "Stage tier: all scripted assertions pass. Acceptance tier: all acceptance criteria met, designer never self-judges, review gate enforced, and cost_tracking metrics recorded (expected_designer_spawns verified, tokens/turns logged)."
   },
   "pack_evals": {
     "note": "Run these against whichever pack is active. A pack ships its own fixtures because the expected violations depend on its palette, type scale and footer.",
