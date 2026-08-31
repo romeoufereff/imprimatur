@@ -10,6 +10,11 @@ pypdf>=4.0            # merges the per-slide PDFs into one deck
                       #    older PyPDF2 name; neither was ever listed here,
                       #    so the merge step failed on a clean install)
 numpy>=1.24           # geometry maths in the SVG builder
+pytest>=7.0           # not an engine runtime dep — but scripts/validate_all.sh's "gates"
+                      #   stage shells out to `pytest tests/` on svg-reconstruct's own
+                      #   suite, so the §4 Verify step in INSTALL.md fails on a clean
+                      #   install without it. Listed here for the same reason pypdf is
+                      #   listed above: the thing that needed it never had it.
 
 # Optional. svg-reconstruct falls back to Playwright rasterisation without it.
 # cairosvg>=2.7
