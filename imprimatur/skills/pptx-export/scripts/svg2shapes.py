@@ -11,8 +11,11 @@ PowerPoint instead of a picture.
 Scope = the design system's SVG grammar (rect/circle/ellipse/line/polyline/polygon/
 path/text/g, linearGradient incl. userSpaceOnUse, marker-end arrowheads, feDropShadow,
 transforms, dashes, text-anchor). Anything outside it raises Unconvertible with a reason
-and the builder falls back to today's svgBlip: textPath (curved labels), clipPath, mask,
-pattern, radialGradient, <use>, <image>, <foreignObject>, or >150 elements (ECharts).
+and the builder falls back to today's svgBlip: textPath (curved labels), mask, pattern,
+radialGradient, <use>, <image>, <foreignObject>, or >150 elements (ECharts).
+<clipPath> definitions are skipped rather than rejected: ECharts' SVG renderer wraps every
+plot in a clip equal to the plot area, which trims nothing visible, and PowerPoint shapes
+cannot carry a clip anyway — so a clipped group converts to native shapes unclipped.
 
 Model coordinates are SLIDE PX (the caller passes the placement rect); the builder does
 px→EMU. Text sizes stay px (builder applies PT_PER_PX).
@@ -52,7 +55,7 @@ _TEXT_FONT = _load_ds().get("typography.familyLabel", "sans-serif")
 
 MAX_ELEMENTS = 150
 
-UNSUPPORTED = {'textPath', 'clipPath', 'mask', 'pattern', 'radialGradient',
+UNSUPPORTED = {'textPath', 'mask', 'pattern', 'radialGradient',
                'use', 'image', 'foreignObject', 'symbol', 'switch'}
 
 
@@ -428,7 +431,7 @@ class Parser:
 
     def walk(self, el, m, style, in_defs):
         tag = _strip(el.tag)
-        if tag in ('defs', 'marker', 'filter', 'linearGradient', 'title', 'desc', 'metadata', 'style'):
+        if tag in ('defs', 'clipPath', 'marker', 'filter', 'linearGradient', 'title', 'desc', 'metadata', 'style'):
             return
         st = self.style_of(el, style)
         mm = mat_mul(m, parse_transform(el.get('transform') or ''))
