@@ -27,6 +27,9 @@ import re
 import sys
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ds_config import load as _load_ds  # noqa: E402  (font family comes from the pack, never hardcoded)
+
 INDEX_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,7 +40,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     html, body {{
       width: 100%; height: 100%; background: #111; overflow: hidden;
-      font-family: "Museo Sans", "-apple-system", sans-serif;
+      font-family: "{font_family}", "-apple-system", sans-serif;
     }}
     iframe {{ width: 100%; height: 100%; border: none; display: block; }}
     #nav {{
@@ -132,9 +135,13 @@ def parse_intake(brief_path):
 
 def build_index_html(title, slide_files):
     slide_list = ",\n".join(f"      '{s}'" for s in slide_files)
+    try:
+        font_family = _load_ds().get("typography.familyLabel", "sans-serif")
+    except Exception:
+        font_family = "sans-serif"
     return INDEX_TEMPLATE.format(
         title=title, first_slide=slide_files[0] if slide_files else "",
-        count=len(slide_files), slide_list=slide_list,
+        count=len(slide_files), slide_list=slide_list, font_family=font_family,
     )
 
 

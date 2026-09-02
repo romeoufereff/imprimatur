@@ -12,7 +12,7 @@ Why this exists: those two templates stay exactly as they are (Roman's
 decision, 2026-09-02 — the map's quality matters more than the file size), so
 the fix has to be on the engine side. `new_slide.py` (WP2) already copies a
 template byte-for-byte without a `Read`, but nothing stopped an agent from
-`Read`-ing the template directly out of habit or curiosity first — one Nordex
+`Read`-ing the template directly out of habit or curiosity first — one real
 designer transcript did this 12 times, ~2M tokens. This hook makes the byte-
 for-byte copy path the only path.
 

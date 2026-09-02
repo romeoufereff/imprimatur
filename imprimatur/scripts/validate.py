@@ -103,7 +103,7 @@ SCALER_TRANSFORM_RE = re.compile(r"\.style\.transform\s*=\s*['\`]scale\(")
 # @font-face rule, a subtly wrong scaler). new_slide.py (WP2) now does the copy in
 # a script instead, so this check turns "was it actually copied" into a diff
 # instead of a heuristic: a deck slide's <head> must match its OWN claimed source
-# template's <head>, not the model's memory of what EPAM slides tend to look like.
+# template's <head>, not the model's memory of what the brand's slides tend to look like.
 #
 # Deliberately NOT compared against the pack's slide-base.html: that file's head is
 # NOT byte-identical to the templates' heads in this pack today (different
@@ -113,7 +113,7 @@ SCALER_TRANSFORM_RE = re.compile(r"\.style\.transform\s*=\s*['\`]scale\(")
 # what new_slide.py always produces regardless of which template family it copied.
 #
 # The comparison is a NORMALIZED SUPERSET check, not raw byte equality, for two
-# reasons found in real decks (STADA fixture, 2026-09):
+# reasons found in real decks (a real client deck, 2026-09):
 #   1. Whitespace/comment reflow: the pack's template files have been reformatted
 #      (blank lines, `// comment` additions) since some already-shipped deck slides
 #      were copied from an earlier version of the same template. Title text also

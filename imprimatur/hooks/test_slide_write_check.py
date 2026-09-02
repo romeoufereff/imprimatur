@@ -67,7 +67,10 @@ def main():
 
         # ── Case 2: off-brand class -> STATIC FAIL, names the violation ──
         bad_slide = os.path.join(deck_dir, "02-bad.html")
-        bad = clean.replace("bg-epam-cover", "bg-blue-500", 1)
+        # Pack-agnostic: swap the first pack-prefixed background class for a
+        # Tailwind default-palette class, whatever the active pack's prefix is.
+        pack_bg = re.search(r"\bbg-[a-z0-9]+-[\w-]+", clean).group(0)
+        bad = clean.replace(pack_bg, "bg-blue-500", 1)
         with open(bad_slide, "w", encoding="utf-8") as f:
             f.write(bad)
         context, elapsed, err = run_hook(bad_slide)
