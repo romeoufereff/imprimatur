@@ -104,8 +104,20 @@ specific remediation guidance before the next retry.
 
 ### The §8 HTML preview fails
 Typical: missing slide file, stale `slides` array in index.html, fonts not loading.
-→ Verify folder completeness against the add/remove-a-slide checklist (SKILL.md §7),
-regenerate index.html, retry. Second failure → escalate with a folder listing.
+→ Reconcile `deck-state.json` against the files on disk (`phase-4-design.md` § 4d),
+re-run `assemble_deck.py --deck-dir D`, retry. Fonts not loading means a slide was not
+created via `new_slide.py` — re-create it with `--force` and re-apply its edits. Second
+failure → escalate with a folder listing.
+
+### A designer chunk is blocked by the stop gate repeatedly
+Typical: the same `qa.py` FAIL (overflow, unpainted fill) survives two fix attempts.
+→ Trigger 2 applies to the agent's own loop as well: stop tweaking, read the JSON verdict's
+element and coordinates, and if the content genuinely does not fit → Trigger 1 (density).
+A chunk agent that cannot clear the gate reports the verdict verbatim as an escalation.
+
+### An agent cannot find the plugin or the pack
+→ The spawn prompt is missing the header block (`ds_config.py --header`). Re-send it via
+`SendMessage`; never let the agent search the filesystem.
 
 ### pdf-export fails
 Typical: no files matching glob (→ check path), blue-rectangle gradient artifact (→ fonts

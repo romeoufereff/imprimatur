@@ -70,10 +70,10 @@ exactly the tells VARIANCE is tuned to prevent.
 
 | Sub-skill | Uses DENSITY for | Uses VARIANCE for |
 |---|---|---|
-| **orchestrator** | Defaulting + surfacing at intake; recording in `deck-brief.md` | Shaping the skeleton: enough breathers + visual slides for the setting |
+| **orchestrator** | Defaulting + surfacing at intake; recording in `deck-brief.md` | Shaping the skeleton, then the phase-4a design plan: `plan_check.py` checks the locked template table against this dial's thresholds before any designer is spawned |
 | **deck-narrative** | The `Density:` line of each SLIDE BRIEF | Spreading visual concepts so the deck hits the min-visual-slides count and avoids same-shape adjacency |
-| **deck-designer** | The density budget in the Step-4 self-check | The rhythm check (Step 2) + template-repetition tally |
-| **design-crit** | Framework 3 (Whitespace/Density) & 7 (Cognitive Load) targets | Flagging template monotony / missing breathers as a deck-level tell |
+| **deck-designer** | The atomic-item count in its per-slide judgment check (over budget → escalate, never shrink type) | Nothing — templates are pre-locked by the plan; a swap is an escalation |
+| **design-crit** | Framework 3 (Whitespace/Density) & 7 (Cognitive Load) targets | Deck-level verdict from `plan_check.py` output + named deck-level tells (template monotony, wall-of-cards, missing breathers) |
 
 ## Overriding the defaults
 

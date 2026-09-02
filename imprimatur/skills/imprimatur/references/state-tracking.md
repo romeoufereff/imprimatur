@@ -3,68 +3,51 @@
 How the orchestrator tracks progress across the 10-phase workflow — and how a fresh
 session resumes a half-built deck.
 
-**Design principle:** track only what a session actually reads and writes. Earlier
-versions of this file specified checksums, handoff state machines, and rollback
-protocols; none of that was ever executed and it eroded trust in the docs that are
-real. State here is two artifacts: the **in-chat slide tracker** (working memory) and
-**`deck-state.json`** (persistence between sessions).
+**Design principle:** track only what a session actually reads and writes. State is two
+artifacts: the **in-chat slide tracker** (working memory) and **`deck-state.json`**
+(persistence between sessions, and the slide list every script reads).
 
 ---
 
-## 1 · The slide tracker (in-chat, updated after every step)
-
-The orchestrator keeps this table in its working context and re-prints it whenever
-status changes. This is the canonical format (also shown in `SKILL.md` § State
-Management):
+## 1 · The slide tracker (in-chat, re-printed on every status change)
 
 ```
 Deck: SAP BW Modernization (10 slides, Executive Pitch)
 Dials: density=sparse, variance=high   ·   Brief: deck-brief.md
 Last updated: [timestamp]
 
-| # | Title | Narrative | Designer | Brand Audit | Design Crit | Status | Notes |
-|---|---|---|---|---|---|---|---|
-| 1 | Cover | ✓ | ✓ | PASS | PASS | ✓ approved | — |
-| 3 | Problem | ✓ | ✓ | FAIL | — | ⚠️ revising | Contrast fail, designer fixing |
-| 6 | Proof | ✓ | ✗ | — | — | ⏳ pending | Awaiting designer |
+| # | Title | Template | Visual | Written | QA | Brand | Crit | Status | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Cover | 01-cover | none | ✓ | PASS | PASS | PASS | ✓ approved | — |
+| 3 | Problem | 03-two-column | none | ✓ | PASS | FAIL | — | ⚠️ revising | contrast on callout label |
+| 6 | Proof | 42-data-chart | chart | ✗ | — | — | — | ⏳ pending | chunk 2 running |
 ```
 
-### Slide status values
+### Slide status values (tracker ↔ `deck-state.json`)
 
-| Status | Meaning |
-|---|---|
-| `⏳ pending` | Brief exists, slide not yet generated |
-| `🔄 auditing` | Drafted, one or both audits in progress |
-| `⚠️ revising` | Audit feedback returned, designer working |
-| `✓ approved` | Both audits passed; frozen unless a review comment touches it |
+| Tracker | JSON `status` | Meaning |
+|---|---|---|
+| `⏳ pending` | `pending` | Planned at 4a (template + visual locked), file not yet written |
+| `🔄 written` | `written` | Designer created it (`log_slide.py`), chunk QA passed, awaiting audits |
+| `⚠️ revising` | `revised` | A revision was applied; re-check pending or done |
+| `✓ approved` | `approved` | Both audits clear; frozen unless a §9 comment touches it |
 
 ### Phase status values
 
-| Status | Meaning |
-|---|---|
-| `pending` | Not started |
-| `in_progress` | Currently executing |
-| `paused` | Awaiting user input (skeleton approval, review round, acceptance) |
-| `completed` | Done; next phase may start |
+`pending` · `in_progress` · `paused` (awaiting user: skeleton approval, review round,
+acceptance) · `completed`.
 
 ---
 
-## 2 · deck-state.json (persisted at phase boundaries — and mid-batch by the agents themselves)
+## 2 · deck-state.json
 
-Write this file into the deck folder **at every phase boundary** and after any batch of
-slide-status changes. It is the resume point for an interrupted session — without it, a
-fresh session has to reverse-engineer progress from the files.
-
-**Phases 4–5 are the exception to "the orchestrator writes it."** The designer,
-brand-audit, and design-crit agents are each spawned once with the full N-slide batch and
-don't report back to the orchestrator until the whole batch is done — so during those
-phases, *the spawned agent* updates its own slide-level entries in `deck-state.json`
-directly, right after finishing each slide, the same way it appends to
-`design-decisions.md` as it goes. This is what keeps a mid-batch interruption resumable:
-if the designer agent gets cut off after slide 6 of 10, `deck-state.json` still shows
-slides 1–6 as written because the agent wrote that itself, not because the orchestrator
-happened to be watching. The orchestrator re-syncs its own in-chat tracker from the file
-once an agent's batch report lands, rather than writing the file turn by turn itself.
+Written into the deck folder **at every phase boundary** by the orchestrator, and
+**per slide by the designer chunks** during phase 4 (`log_slide.py` upserts `slides[n]`
+under a file lock, so parallel chunk agents never clobber each other). It is the resume
+point for an interrupted session and the **slide list of record**: `qa.py --deck-dir`,
+`build_review.py`, `assemble_deck.py`, `batch_convert.py` and `html2pptx.py` all take
+their slide list from here when present (fallback: the `NN-*.html` glob), which is why
+orphan files must be archived rather than left beside the deck (`phase-4-design.md` § 4b).
 
 ```json
 {
@@ -74,72 +57,82 @@ once an agent's batch report lands, rather than writing the file turn by turn it
   "phase_name": "Revision Loops",
   "phase_status": "in_progress",
   "dials": { "density": "sparse", "variance": "high" },
-  "updated_at": "2026-07-17T14:30:00Z",
+  "updated_at": "2026-09-02T14:30:00Z",
   "slides": [
-    { "n": 1, "file": "01-cover.html",   "title": "Cover",   "status": "approved" },
-    { "n": 3, "file": "03-problem.html", "title": "Problem", "status": "revising",
-      "notes": "brand-audit contrast fail on callout label" },
-    { "n": 6, "file": "06-proof.html",   "title": "Proof",   "status": "pending" }
+    { "n": 1, "file": "01-cover.html",   "title": "Cover",   "status": "approved",
+      "template": "01-cover",            "visual": "none",  "updated_at": "2026-09-02T13:02:11Z" },
+    { "n": 3, "file": "03-problem.html", "title": "Problem", "status": "revised",
+      "template": "03-two-column-asymmetric", "visual": "none", "updated_at": "2026-09-02T14:21:40Z",
+      "notes": "brand-audit contrast fail on callout label — fixed, script re-check pending" },
+    { "n": 6, "file": "06-proof.html",   "title": "Proof",   "status": "pending",
+      "template": "42-data-chart",       "visual": "chart", "updated_at": "2026-09-02T12:40:00Z" }
   ],
   "open_annotations": 0,
   "review": { "offered": false, "fast_track": false },
-  "next_action": "designer revising slide 3; slides 6-7 not yet generated"
+  "next_action": "script re-check slide 3; chunk 2 (slides 6-10) still running"
 }
 ```
 
-Field notes:
-- `phase` / `phase_name` — 1–10 per the orchestrator workflow.
-- `slides[].status` — `pending` / `auditing` / `revising` / `approved` (the tracker
-  statuses, without the emoji).
-- `open_annotations` — count of `status: "open"` entries in `annotations.json` (0 when
-  no review round has run yet). This is a **human-readable mirror, not the gate's input**:
-  `export_gate.py` reads `annotations.json` directly, so editing this number changes
-  nothing. Keep it accurate anyway — it is what a resumed session reads first.
-- `review.offered` — set `true` the moment the §9 harness is generated and handed to the
-  user. `review.fast_track` — set `true` when the §1 fast-track legitimately skips the
-  harness (internal + variance `low` + ≤7 slides). One of the two must be `true` before
-  export: `export_gate.py` blocks any export from a deck with no `annotations.json` and
-  neither flag set — that state means the review step was skipped, not passed.
-- `next_action` — one human-readable sentence; the single most useful field on resume.
-- Companion files: `deck-brief.md` (locked intent, written at intake) and
-  `deck-metadata.json` (machine fields for render/export). Don't duplicate their
-  content here — this file is about *progress*, those are about *intent* and *identity*.
+### Per-slide fields
 
-### Resuming a deck
+| Field | Who writes it | Notes |
+|---|---|---|
+| `n` | orchestrator (4a) | integer, 1-based |
+| `file` | orchestrator (4a) | `NN-slug.html`; the filename on disk |
+| `title` | orchestrator (4a) | short human title from the skeleton |
+| `status` | orchestrator (4a → `pending`; audits → `approved`), `log_slide.py` (`written`, `revised`) | `pending` \| `written` \| `revised` \| `approved` |
+| `template` | orchestrator (4a), `log_slide.py` (confirms/overrides on escalation) | pack stem; host template for bespoke/chart |
+| `visual` | orchestrator (4a), `log_slide.py` | `none` \| `chart` \| `pipeline` \| `bespoke` — `qa.py` uses it to scope the paint check and PNG render |
+| `updated_at` | whoever last wrote the entry | ISO8601 |
+| `notes` | orchestrator | optional, one line; the error log for that slide |
 
-When invoked on a folder that already contains `deck-state.json` + `deck-brief.md`:
+### Deck-level fields
 
-1. Read both, plus `annotations.json` if present.
-2. **Reconcile against reality** — list the `NN-*.html` files actually present and
-   diff against `slides[]`. Files win: a slide listed as `pending` but present on disk
-   means the state file is stale; say so and correct it.
-3. Re-print the slide tracker, state the recorded `next_action`, and confirm with the
-   user before continuing: *"Resuming at phase 6 — slide 3 mid-revision, slides 6–7
-   not yet generated. Continue from there?"*
-4. Do **not** re-run intake or re-ask locked questions; `deck-brief.md` is the source
-   of truth for intent.
+- `phase` / `phase_name` / `phase_status` — 1–10 per the orchestrator workflow.
+- `open_annotations` — count of `status: "open"` in `annotations.json` (0 before any
+  review round). A human-readable mirror, not the gate's input: `export_gate.py` reads
+  `annotations.json` directly. Keep it accurate anyway — it is what a resumed session reads first.
+- `review.offered` — `true` the moment the §9 harness is generated and handed over.
+  `review.fast_track` — `true` when the §1 fast-track legitimately skips the harness
+  (internal + variance `low` + ≤ 7 slides). One of the two must be `true` before export;
+  `export_gate.py` blocks a deck with no `annotations.json` and neither flag.
+- `next_action` — one sentence; the single most useful field on resume.
+- Companion files: `deck-brief.md` (intent), `design-decisions.md` (the plan and per-slide
+  log, `templates/design-decisions-template.md`), `deck-metadata.json` (identity, written by
+  `assemble_deck.py`). Do not duplicate their content here.
 
 ---
 
-## 3 · Errors, retries, and escalation
+## 3 · Resuming a deck
 
-Failure handling lives with the workflow, not here:
+When invoked on a folder that already contains `deck-state.json` + `deck-brief.md`:
 
-- Per-slide revision limits (max 2 cycles), escalation triggers, and per-skill error
-  playbooks: orchestrator `SKILL.md` § Revision Limits & Escalation and § Error
-  Handling & Fallbacks.
-- When something fails, record it in the tracker's `Notes` column and in
-  `deck-state.json` → `next_action`; that's the whole error log. If a failure blocks a
-  phase, set `phase_status: "paused"` and say what's needed to unblock.
+1. Read both, plus `annotations.json` if present, and `log_slide.py --deck-dir D --summary`.
+2. **Reconcile against reality** — list the `NN-*.html` files actually present and diff
+   against `slides[]` (the one-liner in `phase-4-design.md` § 4d). Files win: a slide
+   listed `pending` but present on disk means the state is stale; say so and correct it.
+   A file not in `slides[]` is an orphan — archive it (§ 4b) rather than adopting it silently.
+3. Re-print the tracker, state the recorded `next_action`, and confirm before continuing:
+   *"Resuming at phase 6 — slide 3 mid-revision, chunk 2 not yet written. Continue?"*
+4. Do **not** re-run intake or re-ask locked questions; `deck-brief.md` is the source of truth.
+5. A chunk that was interrupted mid-way is re-spawned for its remaining `pending` slides
+   only; already-`written` slides are not regenerated.
 
-## 4 · Update checklist
+---
 
-- [ ] Tracker re-printed after every slide status change
-- [ ] `deck-state.json` written at every phase boundary (and read back — verify side effects)
-- [ ] During phases 4–5, confirm the spawned agent is updating `deck-state.json` itself
-      per slide (not just at batch end) — check this the same way you'd check
-      `design-decisions.md` is being appended to
-- [ ] `updated_at` refreshed on every write; ISO8601 timestamps
-- [ ] `open_annotations` synced from `annotations.json` after each review round
-- [ ] `review.offered` set when the §9 harness is handed over (or `review.fast_track` when §1 fast-track is invoked)
-- [ ] On resume: reconcile state against files before trusting it
+## 4 · Errors, retries, escalation
+
+Failure handling lives with the workflow: revision limits, escalation triggers and per-skill
+playbooks are in `escalation-and-errors.md`. When something fails, record it in the
+tracker's `Notes` column and in `next_action`; that is the whole error log. If a failure
+blocks a phase, set `phase_status: "paused"` and say what unblocks it.
+
+## 5 · Update checklist
+
+- [ ] Tracker re-printed after every status change
+- [ ] `deck-state.json` written at every phase boundary and read back (verify side effects)
+- [ ] During phase 4, chunk agents write their own slide entries via `log_slide.py` — confirm with `--summary` + the disk diff, never from a report alone
+- [ ] `updated_at` refreshed on every write; ISO8601
+- [ ] `open_annotations` synced after each review round
+- [ ] `review.offered` set when the harness is handed over (or `review.fast_track` at §1)
+- [ ] On resume: reconcile against files before trusting the state

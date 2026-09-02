@@ -57,6 +57,52 @@ CASES = [
      "cat > index.html <<'EOF'\n<html></html>\nEOF"),
     (ALLOW, "unrelated command",
      "ls -la /tmp"),
+
+    # WP2: new_slide.py is sanctioned for ONE slide per invocation — a loop
+    # calling it must still be blocked (its own file write is invisible to the
+    # WRITE_PATTERNS regexes above, so this needs its own check).
+    (ALLOW, "new_slide.py single call",
+     'python3 scripts/new_slide.py --deck-dir "/decks/acme" --template 01-cover --n 1 --slug cover'),
+    (ALLOW, "new_slide.py chained with an Edit-adjacent Bash call (not a loop)",
+     'python3 scripts/new_slide.py --deck-dir "/decks/acme" --template 04-big-idea --n 4 --slug big-idea '
+     '&& python3 scripts/log_slide.py --deck-dir "/decks/acme" --n 4 --template 04-big-idea --visual none '
+     '--focal "hero stat" --status written'),
+    (BLOCK, "for-loop calling new_slide.py for every slide",
+     'for i in 01 02 03; do python3 scripts/new_slide.py --deck-dir "/d" --template 02-content-bullets '
+     '--n "$i" --slug "s$i"; done'),
+    (BLOCK, "while-loop calling new_slide.py",
+     'while read -r n t; do python3 scripts/new_slide.py --deck-dir "/d" --template "$t" --n "$n" '
+     '--slug "s$n"; done < briefs.txt'),
+    (BLOCK, "python range() driving new_slide.py via subprocess",
+     'python3 -c "import subprocess\\nfor n in range(1,6): subprocess.run([\'python3\','
+     '\'scripts/new_slide.py\',\'--deck-dir\',\'/d\',\'--template\',\'t\',\'--n\',str(n),\'--slug\',\'s\'])"'),
+
+    # WP1/WP3/WP5/WP6/WP7/WP8: the rest of the plan's new engine scripts are
+    # sanctioned single-call tooling, same as qa.py/validate.py above.
+    (ALLOW, "render_checks.py on a batch of files (not a write)",
+     'python3 scripts/render_checks.py deck/01-cover.html deck/02-body.html --deck-dir deck --json'),
+    (ALLOW, "log_slide.py bookkeeping call",
+     'python3 scripts/log_slide.py --deck-dir "/decks/acme" --n 1 --template 01-cover --visual none '
+     '--focal "cover" --status written'),
+    (ALLOW, "slide_body.py read helper",
+     'python3 scripts/slide_body.py deck/01-cover.html deck/02-body.html'),
+    (ALLOW, "pack_brief.py boot-sequence call",
+     'python3 scripts/pack_brief.py'),
+    (ALLOW, "plan_check.py",
+     'python3 scripts/plan_check.py --deck-dir "/decks/acme"'),
+    (ALLOW, "assemble_deck.py",
+     'python3 scripts/assemble_deck.py --deck-dir "/decks/acme"'),
+
+    # WP8: archiving stale/orphan slides is sanctioned, even though the archived
+    # filename still matches the slide pattern (so it would otherwise trip the
+    # cp/mv WRITE_PATTERNS rule below).
+    (ALLOW, "mv a stale slide into _archive/",
+     'mv "/decks/acme/08-orphan.html" "/decks/acme/_archive/2026-09-02/08-orphan.html"'),
+    (ALLOW, "mv several stale slides into _archive/ in one loop",
+     'for f in 08-orphan.html 09-old.html; do mv "/decks/acme/$f" '
+     '"/decks/acme/_archive/2026-09-02/$f"; done'),
+    (BLOCK, "mv onto a slide path that is NOT an archive destination",
+     'mv "/decks/acme/draft.html" "/decks/acme/04-solution.html"'),
 ]
 
 

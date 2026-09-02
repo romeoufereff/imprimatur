@@ -18,10 +18,15 @@ deck/
 ├── 06-proof.html
 ├── 07-risks.html
 ├── 08-next-steps.html
-├── fonts/              ← Deck-local font copies (populated by fix_font_paths.py; slides reference fonts/<file>)
+├── fonts/              ← Deck-local font copies (populated by new_slide.py per slide; slides reference fonts/<file>)
+├── Input/source-notes.md ← Extracted source facts (Explore subagent at intake), if sources were given
 ├── deck-brief.md        ← Written by orchestrator at intake (dials, anti-refs, voice)
-├── index.html          ← Create this (see templates/index-html-template.md)
-├── deck-metadata.json  ← Create this (see below)
+├── design-decisions.md  ← Design plan (orchestrator, 4a) + per-slide log (log_slide.py)
+├── narrative-outline.md ← Outline + SLIDE BRIEFs, written by deck-narrative
+├── deck-state.json      ← Progress + the slide list of record (references/state-tracking.md)
+├── _archive/<date>/     ← Stale NN-*.html moved here before designers are spawned
+├── index.html          ← Written by scripts/assemble_deck.py (from templates/index-html-template.md)
+├── deck-metadata.json  ← Written by scripts/assemble_deck.py (fields below)
 ├── slide-review.html   ← Generated at §9 by deck-review (click-to-comment harness)
 └── annotations.json    ← Exported by the user from the harness; refined against, then review-clean
 ```
@@ -45,6 +50,11 @@ see `templates/deck-brief-template.md`.
 ---
 
 ## Step 2: Create index.html
+
+**Normally you do not do this by hand:** `python3 {PLUGIN}/scripts/assemble_deck.py --deck-dir D`
+writes `index.html` from the template below with the `slides` array taken from
+`deck-state.json`, and `deck-metadata.json` (Step 3) in the same call. The manual steps
+stay here as the reference for what the script produces and for repairing a viewer by hand.
 
 The index.html file provides:
 - Slide viewer (displays HTML slides in an iframe)

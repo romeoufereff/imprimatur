@@ -132,6 +132,9 @@ echo
 echo "${bold}gates${off}"
 stage "export gate"             "$PY" "$PLUGIN/hooks/test_export_gate.py"
 stage "batch-slide-write block" "$PY" "$PLUGIN/hooks/test_block_batch_slide_write.py"
+stage "static write check (hook JSON)" "$PY" "$PLUGIN/hooks/test_slide_write_check.py"
+stage "designer stop gate"      "$PY" "$PLUGIN/hooks/test_designer_stop_gate.py"
+stage "large-template read guard" "$PY" "$PLUGIN/hooks/test_block_large_template_read.py"
 stage "svg-reconstruct unit tests" env -C "$PLUGIN/skills/svg-reconstruct" "$PY" -m pytest tests/ -q
 stage "svg recipes build"       env -C "$PLUGIN/skills/svg-reconstruct" "$PY" -c '
 import sys, glob, json; sys.path.insert(0, ".")

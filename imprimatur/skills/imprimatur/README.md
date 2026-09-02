@@ -36,21 +36,28 @@ User brief
 2. STRUCTURE PLANNING      orchestrator drafts a slide-by-slide skeleton, user approves
   ▼
 3. NARRATIVE HANDOFF       deck-narrative turns the skeleton into a story arc + one
-                            visual concept brief per slide
+                            visual concept brief per slide (narrative-outline.md)
   ▼
-4. DESIGN COORDINATION     deck-designer generates each slide as self-contained HTML
+4a. DESIGN PLAN            orchestrator locks template + accent per slide into
+                            design-decisions.md; plan_check.py verifies the variance dial
   ▼
-5. AUDIT MANAGEMENT        brand-audit (mechanical: tokens, contrast, fonts) →
-                            design-crit (principles: hierarchy, narrative, anti-slop)
+4b. DESIGN COORDINATION    deck-designer agents, one per ≤ 5-slide chunk, in parallel:
+                            new_slide.py byte-copies the template, a few Edits replace
+                            content, a static verdict lands on every write, one batch
+                            qa.py per chunk (stop-gated)
   ▼
-6. REVISION LOOPS          designer fixes flagged issues, re-audits (max 2 cycles/slide,
-                            then escalate to user)
+5. AUDIT MANAGEMENT        brand-audit (one qa.py run + logo/eyebrow/acronym/gradient
+                            judgment) ∥ design-crit (principles, anti-slop, deck-level
+                            verdict) — read-only, spawned together
   ▼
-7. DECK ASSEMBLY           orchestrator collects slides into a deck folder, builds
-                            index.html (nav viewer) + deck-metadata.json
+6. REVISION LOOPS          one merged fix batch → designer; script-only re-checks
+                            (max 2 rounds; max 2 cycles/slide, then escalate)
   ▼
-8. HTML PREVIEW            the orchestrator serves the deck locally for a full-fidelity
-                            browser preview (fonts, gradients, nav)
+7. DECK ASSEMBLY           assemble_deck.py writes index.html (nav viewer) +
+                            deck-metadata.json from deck-state.json + deck-brief.md
+  ▼
+8. HTML PREVIEW            the orchestrator serves the deck locally with one whole-deck
+                            qa.py summary — a look-ahead, not a sign-off
   ▼
 9. VISUAL REVIEW & REFINE  deck-review generates a click-to-comment harness; user marks
                             up elements; comments are applied and re-audited until zero
@@ -178,10 +185,10 @@ grep -rn -i "yourbrand" . --exclude-dir=design-system --exclude-dir=evals
 |---|---|
 | [`design-system`](design-system/SKILL.md) | The swappable brand pack — tokens, template library, typography, SVG/chart rules. Not a workflow step; every other skill reads it. |
 | [`deck-narrative`](deck-narrative/SKILL.md) | Story strategist — Pyramid/S-curve/SCQA framing, slide-by-slide visual concept briefs |
-| [`deck-designer`](deck-designer/SKILL.md) | Generates each slide as self-contained HTML from a brief + the design system |
-| [`brand-audit`](brand-audit/SKILL.md) | Mechanical compliance checks (tokens, WCAG contrast, fonts, logo, footer) |
-| [`design-crit`](design-crit/SKILL.md) | Principles-based design review (hierarchy, whitespace, assertion-evidence, anti-slop tells) |
-| *(HTML preview)* | Orchestrator §8, inline — `http.server` over the deck folder plus `validate.py` and `check_overflow.py` |
+| [`deck-designer`](deck-designer/SKILL.md) | Generates each slide by byte-copying a pack template (`new_slide.py`) and editing content — one chunk of ≤ 5 slides per agent, chunks in parallel |
+| [`brand-audit`](brand-audit/SKILL.md) | Compliance: consumes the whole-deck `qa.py --json` once, then the judgment rows (logo, eyebrow, acronyms, gradient contrast) |
+| [`design-crit`](design-crit/SKILL.md) | Principles-based design review (hierarchy, whitespace, assertion-evidence, anti-slop tells) + deck-level verdict from `plan_check.py` |
+| *(HTML preview)* | Orchestrator §8, inline — `http.server` over the deck folder plus one whole-deck `qa.py --json` |
 | [`deck-review`](deck-review/SKILL.md) | Click-to-comment visual review harness + refine loop — the gate before export |
 | [`pdf-export`](pdf-export/SKILL.md) | Renders the final deck to PDF via Playwright element screenshots |
 | [`svg-reconstruct`](svg-reconstruct/SKILL.md) | *SVG specialist* — parametric geometry for **every** bespoke SVG: 20 recipe types, plus the rules and Design Principles any one-off diagram is authored under. Never eyeball path data |
@@ -201,20 +208,23 @@ with three different working directories between them.
 
 ## Hooks
 
-Five hooks ship **inside the package** and register automatically when it is installed as a
+Seven hooks ship **inside the package** and register automatically when it is installed as a
 plugin — `hooks/hooks.json` paths them through `${CLAUDE_PLUGIN_ROOT}`, so there is nothing to
 copy into `~/.claude/` and no absolute path to repair on someone else's machine.
 
 | Hook | Fires on | Enforces |
 |---|---|---|
-| `slide_write_check.py` | `PostToolUse` · any `NN-slug.html` write/edit | Auto-runs `fix_font_paths.py` + `qa.py` on the slide that changed |
+| `slide_write_check.py` | `PostToolUse` · any `NN-slug.html` write/edit | Runs `validate.py` only (~0.1 s) and returns `STATIC PASS/FAIL <file>` to the model with the tool result |
+| `designer_stop_gate.py` | `SubagentStop` · `deck-designer` | **Blocks** a designer chunk from reporting while any slide it wrote fails the batch `qa.py` |
+| `block_large_template_read.py` | `PreToolUse` · `Read` | **Blocks** whole-file reads of pack templates > 100 KB; points to `new_slide.py` |
+| `block_batch_slide_write.py` | `PreToolUse` · `Bash` | **Blocks** Bash commands that write slide HTML — one slide per `new_slide.py` call, edits via `Write`/`Edit` only |
 | `deck_consistency.py` | `PostToolUse` · `deck-metadata.json` write/edit | Flags `slide_count` drift against the files actually on disk |
 | `export_gate.py` | `PreToolUse` · `Bash` (export scripts) | **Blocks** export when review comments are still open, or when no review round is recorded at all |
-| `block_batch_slide_write.py` | `PreToolUse` · `Bash` | **Blocks** Bash commands that write slide HTML — one slide per turn, via `Write`/`Edit` only |
 | `export_notify.py` | `PostToolUse` · `Bash` (export scripts) | macOS notification when an export finishes |
 
-`hooks/test_export_gate.py` covers the gate's nine allow/block cases; run it after touching the
-gate logic.
+`hooks/test_*.py` cover the static verdict, the stop gate, the batch-write allowlist and the
+export gate's allow/block cases; run `pytest hooks/ -q` after touching any of them. Semantics
+and the per-write / per-chunk QA model: `skills/imprimatur/references/hooks.md`.
 
 If you run the skill *without* installing the plugin (a bare symlink into `~/.claude/skills/`),
 the hooks do not fire — the skill still works, you just lose the mechanical enforcement.
@@ -237,7 +247,7 @@ then register the repo as a (local, unpublished) marketplace and install from it
 
 As a plain skill instead, symlink `skills/imprimatur` into `~/.claude/skills/` — the skill
 folder is self-contained, including its scripts and the design-system pack — but you lose
-the four hooks.
+the hooks (static verdict, stop gate, read guard, batch-write block, export gate).
 
 ## Dependencies
 

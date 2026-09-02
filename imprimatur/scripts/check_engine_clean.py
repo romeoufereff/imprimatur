@@ -100,6 +100,24 @@ def main():
                     continue
                 offenders.append((rel, lineno, H, line.strip()[:70]))
 
+    # WARNING (never a FAIL) for templates > 100KB — WP7. The two 827KB world-map
+    # templates are a deliberate quality decision (Roman, 2026-09-02: the map's
+    # quality matters more than the file size), so this is visibility, not a ban:
+    # `hooks/block_large_template_read.py` is what actually stops the file from
+    # entering a model's context; this just makes future large assets VISIBLE
+    # rather than silently accumulating. Printed regardless of the hex-offender
+    # verdict below, so both problems surface in one run.
+    big = []
+    for p in sorted(glob.glob(os.path.join(ds.templates_dir, "*.html"))):
+        size = os.path.getsize(p)
+        if size > 100 * 1024:
+            big.append((os.path.basename(p), size))
+    if big:
+        print(f"{len(big)} template(s) over 100KB (informational, not a failure):")
+        for name, size in big:
+            print(f"  WARN  {name}  ({size // 1024}KB)")
+        print()
+
     if offenders:
         print(f"{len(offenders)} unexplained hex value(s) in engine code — a brand value has "
               f"leaked out of the pack:\n")

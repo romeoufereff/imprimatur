@@ -1,8 +1,8 @@
 # Deck Pipeline: End-to-End Testing Guide
 
 **Status:** Ready to test  
-**Date:** 2026-05-19  
-**Test Cases:** 3 (pharma pitch, quarterly status, capability brief)  
+**Date:** 2026-09-02  
+**Test Cases:** 3 acceptance scenarios (pharma pitch, quarterly status, capability brief) + 1 performance scenario  
 
 ---
 
@@ -147,6 +147,54 @@ before declaring a pipeline-wide change done, not for every iteration.
 
 ---
 
+### Performance Scenario: 7-slide capability brief (token & speed targets)
+
+**Scenario:** run Test Case 2's request (7 slides, mixed audience, internal) end to end,
+with sources attached if you have any, and measure the transcripts afterwards. This is the
+regression check for the token-and-speed plan; quality gates are unchanged, so every
+acceptance criterion above still applies on top of the numbers below.
+
+**Measure with:**
+
+```bash
+python3 scripts/telemetry/session_stats.py <session-id-or-jsonl>
+```
+
+It prints, per agent: kind, turns, output tokens, cache-read, ctx peak, minutes, image
+reads, tool results > 100 KB, `hook_visible`, and per-slide cycle time (time between
+consecutive `new_slide.py` calls). Baseline and post-change numbers live in
+`evals/perf-baseline.json`.
+
+**Acceptance criteria (all must hold):**
+
+- ✅ **Designer ≤ 6 tool turns per slide** (`new_slide.py` → 2–6 `Edit`s → `log_slide.py`),
+  measured per chunk agent
+- ✅ **Context peak ≤ 150 K tokens for every agent** (each designer chunk, brand-audit,
+  design-crit, narrative); designer context after boot, before slide 1, ≤ 35 K
+- ✅ **`hook_visible == true`**: a `STATIC PASS` / `STATIC FAIL` line follows every slide
+  `Write`/`Edit` in the designer transcript
+- ✅ **Exactly one `qa.py` batch run per designer chunk** (plus re-runs on touched files
+  only); zero `fix_font_paths.py` calls; zero `validate.py` / `check_*.py` calls by hand;
+  brand-audit runs `qa.py --deck-dir --json` exactly once
+- ✅ **No `Read` of any `templates/*.html`** in any transcript; no `Read` of a PDF/DOCX/VTT
+  in the orchestrator transcript (an `Explore` subagent wrote `Input/source-notes.md`)
+- ✅ **No tool result > 100 KB** in any transcript
+- ✅ **PNG reads ≤ number of bespoke/chart/pipeline slides + FAIL retries**
+- ✅ **Zero filesystem searches for the plugin** (`find … plugin`, `ls ~/.claude/plugins…`)
+  in any agent transcript — every spawn prompt opened with the header block
+- ✅ **All designer chunks spawned in the same turn**; brand-audit and design-crit spawned
+  in the same turn
+- ✅ **Review-ready in ≤ 25 min of pipeline time** (narrative start → both audits passed and
+  deck assembled; the user's own review time excluded)
+- ✅ `design-decisions.md` ≤ 4 KB at the end; one designer revision spawn at most for two
+  seeded audit findings, one `qa.py` re-check, no second brand-audit / design-crit spawn
+
+**Red flags:** a designer transcript with prose reports between slides · a `qa.py` call
+between slides · an orchestrator screenshot of a slide · a spawn prompt over 3 KB or
+containing pasted HTML · `design-decisions.md` with paragraphs in it.
+
+---
+
 ## Testing Workflow (Per Test Case)
 
 ```
@@ -161,36 +209,40 @@ before declaring a pipeline-wide change done, not for every iteration.
 │  └─ Does it ask for user confirmation?
 │
 ├─ Step 3: Invoke deck-narrative
-│  └─ Does it generate outline + visual concept briefs?
-│  └─ Are briefs complete (message, structure, key data, emphasis, audience, density)?
+│  └─ Does the spawn prompt open with the header block and carry paths only?
+│  └─ Does the agent write narrative-outline.md itself (outline + one SLIDE BRIEF per slide)?
+│  └─ Are briefs complete (message, structure, visual, key data, emphasis, audience, density)?
 │
-├─ Step 4: Invoke deck-designer once, with all N slide briefs in one message (batch)
-│  └─ Does it work through all N slides itself, one Write call per slide, without the
-│     orchestrator brokering each one via SendMessage?
-│  └─ Does its one batch report cover every slide: template, focal point, density, validation?
-│  └─ Does it ONLY iterate on auditor feedback (not self-judge)?
-│  └─ Did it self-update design-decisions.md and deck-state.json per slide as it went?
+├─ Step 4a: Orchestrator DESIGN PLAN
+│  └─ Does it lock template + accent per slide into design-decisions.md before any designer?
+│  └─ Does plan_check.py PASS before the spawn? Are stale NN-*.html archived?
 │
-├─ Step 5: Invoke brand-audit once, with the whole batch (all N slides)
-│  └─ Does it run 9 checks on every slide and report back once, not slide by slide?
-│  └─ All pass: move the whole batch to design-crit
-│  └─ Any fail: report that slide's violations to designer (targeted single-slide revision)
+├─ Step 4b: Invoke deck-designer — one agent per ≤ 5-slide chunk, ALL in the same turn
+│  └─ Per slide: new_slide.py → 2–6 Edits → log_slide.py? No Read of a template .html?
+│  └─ Is a STATIC PASS/FAIL line visible after every slide write, and a FAIL fixed before
+│     the next slide? No qa.py between slides?
+│  └─ One qa.py --files … --json per chunk at the end; stop gate blocks a failing chunk?
+│  └─ Report = log_slide.py --summary + escalations (no per-slide prose)?
+│  └─ Orchestrator verified from files (--summary + state-vs-disk + whole-deck qa.py)?
 │
-├─ Step 6: Invoke design-crit once, with the whole batch (all N slides)
-│  └─ Does it review 10 frameworks on every slide and report back once, not slide by slide?
-│  └─ Does that same report include the deck-level verdict (VARIANCE dial + anti-slop tells)?
-│  └─ Approved: batch done
-│  └─ Issues on a slide: feedback to designer (targeted single-slide revision, then a
-│     targeted re-check — not a full batch re-review)
+├─ Step 5: Invoke brand-audit AND design-crit in the same turn (parallel, read-only)
+│  └─ brand-audit: one qa.py --deck-dir --json run, then the judgment rows (logo, eyebrow,
+│     acronyms, gradient contrast) + any named content check; one table ≤ 40 lines?
+│  └─ design-crit: slide_body.py reads, ≤ 3 lines per slide, deck-level verdict from
+│     plan_check.py + named tells; no "what works" prose?
+│
+├─ Step 6: Orchestrator REVISION — one merged batch
+│  └─ Brand FAILs + accepted crit findings routed as one fix list (≤ 3 fixes per spawn)?
+│  └─ Re-checks script-only (qa.py --files) unless a judgment finding's fix changed layout?
+│  └─ No second brand-audit / design-crit spawn; ≤ 2 rounds?
 │
 ├─ Step 7: Orchestrator ASSEMBLY
-│  └─ Are all slides approved?
-│  └─ Does it generate index.html (deck viewer)?
-│  └─ Does it create deck metadata?
+│  └─ Are all slides approved in deck-state.json?
+│  └─ assemble_deck.py wrote index.html + deck-metadata.json (not a designer, not by hand)?
 │
 ├─ Step 8: HTML preview (orchestrator serves it inline)
-│  └─ Does it serve the deck over local HTTP and verify fonts/gradients/nav?
-│  └─ Does it report a quality summary (not a PDF — render produces no PDF)?
+│  └─ One whole-deck qa.py --json + http.server; URL handed over with the summary line?
+│  └─ No orchestrator screenshots of slides; no sign-off question asked here?
 │
 ├─ Step 9: Invoke deck-review (visual review & refine — the gate)
 │  └─ Does it generate the click-to-comment harness (build_review.py --serve)?
@@ -217,9 +269,22 @@ Designer says: "I think this title should be an assertion. Let me revise it."
 **Fix:** Designer should generate based on brief, then auditors provide feedback.
 
 ### Incomplete Audit Reports (❌ BAD)
-Brand audit says: "Slide is fine" (no specific checks listed)  
-**Problem:** Should list all 9 checks + pass/fail for each.  
-**Fix:** Audit should be thorough and specific.
+Brand audit says: "Slide is fine" (no table, no qa.py evidence)  
+**Problem:** Should be one table with a row per finding, PASS rows for clean slides, a
+summary line naming the qa.py result and the judgment findings.  
+**Fix:** Audit should be thorough and specific — line numbers and the exact token/class.
+
+### Re-running What Already Ran (❌ BAD)
+Designer runs `qa.py` after every slide; brand-audit runs `validate.py` and
+`check_contrast.py` per slide; orchestrator screenshots every slide at preview.  
+**Problem:** The static verdict already arrived with each write; the chunk's batch `qa.py`
+already ran; brand-audit's one `qa.py --deck-dir --json` is the evidence.  
+**Fix:** One check per stage — see `references/hooks.md` for who runs what.
+
+### Bloated Bookkeeping (❌ BAD)
+`design-decisions.md` grows past 4 KB with paragraphs; designer writes a prose report per slide.  
+**Problem:** Every agent re-reads that file on boot; prose reports are discarded.  
+**Fix:** `log_slide.py` only (fixed table format); report = `--summary`.
 
 ### Circular Revision Loops (❌ BAD)
 Designer → Brand Audit → Designer → Brand Audit → ... (>3 loops)  
@@ -265,37 +330,40 @@ STRUCTURE PHASE
 [ ] User approves structure
 
 NARRATIVE PHASE
-[ ] deck-narrative generates outline
-[ ] Visual concept briefs are complete (all 5 fields)
-[ ] Briefs align with narrative strategy
+[ ] deck-narrative wrote narrative-outline.md itself (spawn prompt: header block + paths)
+[ ] Visual concept briefs are complete (all fields incl. Visual:)
+[ ] Visual count meets the VARIANCE dial; briefs align with narrative strategy
 
-DESIGN PHASE (one batch — designer spawned once with all N briefs)
-[ ] deck-designer generates all N slides' HTML in its own turns, one Write call each,
-    without the orchestrator brokering each slide
-[ ] One batch generation report covers every slide: template, focal point, density, validation
-[ ] design-decisions.md and deck-state.json were updated by the designer per slide, not
-    just at the end
-[ ] Designer does NOT self-critique
+DESIGN PLAN (orchestrator, before any designer)
+[ ] design-decisions.md holds Locked choices + one planned row per slide
+[ ] plan_check.py PASS; deck-state.json seeded; stale NN-*.html archived
 
-BRAND AUDIT PHASE (one batch — spawned once with all N slides)
-[ ] All 9 checks run on every slide; one report covers the whole batch
-[ ] All pass → move whole batch to design-crit
-[ ] Any fail → that slide's violations reported with line numbers and fixes (targeted revision)
+DESIGN PHASE (one agent per ≤ 5-slide chunk, all chunks spawned in the same turn)
+[ ] Every slide created via new_slide.py (no Read of any templates/*.html), edited via Edit
+[ ] STATIC PASS/FAIL visible after every slide write; FAILs fixed before the next slide
+[ ] No qa.py / validate.py / fix_font_paths.py between slides; one qa.py batch per chunk
+[ ] design-decisions.md + deck-state.json updated per slide via log_slide.py (rows, no prose)
+[ ] Report = log_slide.py --summary + escalations; designer does NOT self-critique
+[ ] Orchestrator verified from files: --summary, state-vs-disk diff, whole-deck qa.py --json
 
-DESIGN CRIT PHASE (one batch — spawned once with all N slides)
-[ ] All 10 frameworks reviewed on every slide; one report covers the whole batch
-[ ] That report includes the deck-level verdict (VARIANCE dial + anti-slop tells)
-[ ] Feedback is specific and actionable
-[ ] Approved → batch done OR Issues on a slide → designer revises that slide (max 2 revision loops)
+AUDIT PHASE (brand-audit ∥ design-crit, spawned together, read-only)
+[ ] brand-audit: qa.py --deck-dir --json once (FAILs = audit FAILs); judgment rows checked;
+    one table ≤ 40 lines with line numbers and exact fixes
+[ ] design-crit: slide_body.py reads; ≤ 3 lines per slide; deck-level verdict from
+    plan_check.py + named tells; feedback specific and actionable
+
+REVISION PHASE
+[ ] One merged fix list → one designer pass (≤ 3 fixes per spawn/message)
+[ ] Re-checks script-only unless judgment finding + layout change; no auditor re-spawn
+[ ] ≤ 2 rounds per stage, ≤ 2 cycles per slide; escalations surfaced
 
 ASSEMBLY PHASE
-[ ] All slides approved
-[ ] index.html generated with nav
-[ ] Deck metadata created
+[ ] All slides approved in deck-state.json
+[ ] assemble_deck.py wrote index.html + deck-metadata.json; slide_count read back
 
 RENDER PHASE (HTML preview)
-[ ] Deck served over local HTTP; preview opens and navigates
-[ ] Quality checks pass (the pack's font loads, gradients render, nav + counter work)
+[ ] One whole-deck qa.py --json; deck served over local HTTP; URL + summary handed over
+[ ] No orchestrator screenshots; no "does this look good?" at this phase
 
 REVIEW PHASE (the gate)
 [ ] Review harness generated and offered to the user
@@ -380,8 +448,15 @@ If all of these are true, you're ready for production.
 **Q: Designer is revising slides without auditor feedback. Is that OK?**  
 A: No. Designer should generate once based on brief, then auditors tell them what to fix. Designer only iterates on feedback.
 
-**Q: An audit runs only 5 checks instead of 9. Is that OK?**  
-A: No. All checks should run. If some don't apply (e.g., no chart on slide), still report them as "N/A" or "not applicable".
+**Q: Brand-audit skipped the judgment rows and only pasted qa.py output. Is that OK?**  
+A: No. The script is the evidence for the mechanical half; the four judgment rows (logo,
+eyebrow, acronyms, gradient contrast) plus any named content check are the agent's whole
+job. A clean qa.py run with no judgment rows is an incomplete audit.
+
+**Q: The designer ran qa.py after each slide "to be safe". Is that OK?**  
+A: No. The static verdict on each write is the per-slide check; the browser checks run once
+per chunk and the stop gate enforces them. Per-slide qa.py is the 7-second-per-write cost
+the batch model removed.
 
 **Q: Design crit says "This could be better" but doesn't say how. Is that OK?**  
 A: No. Feedback must be specific: "Title is a label; try 'X' instead" or "Focal point unclear; which element should the eye land on first?"

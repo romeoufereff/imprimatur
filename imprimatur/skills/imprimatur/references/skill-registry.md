@@ -8,7 +8,7 @@ The pipeline has three kinds of component and they are invoked differently:
 
 | Kind | Where | How |
 |---|---|---|
-| **Agent** | `{PLUGIN}/agents/<name>.md` | `Agent` tool, `subagent_type: <name>` — spawned with a batch, continued via `SendMessage` only for single-slide revision loops within that batch. `deck-designer` on decks >10 slides gets a fresh spawn per 4–6-slide chunk rather than one agent for the whole deck — see orchestrator SKILL.md §4 |
+| **Agent** | `{PLUGIN}/agents/<name>.md` | `Agent` tool, `subagent_type: <name>`, prompt opening with the `ds_config.py --header` block and carrying paths only (≤ 3 KB). `deck-designer`: one fresh agent per ≤ 5-slide chunk, all chunks spawned in parallel; `brand-audit` and `design-crit`: one spawn each, in parallel. `SendMessage` only for revisions / targeted re-checks — see orchestrator SKILL.md §4–§6 |
 | **Skill** | `{PLUGIN}/skills/<name>/SKILL.md` | Read the SKILL.md and run its scripts; the user can also invoke it directly |
 | **Script** | `{PLUGIN}/scripts/<name>.py` | Run it; several fire automatically via hooks |
 
@@ -51,50 +51,32 @@ The pipeline has three kinds of component and they are invoked differently:
 
 ### 3. Deck Designer
 - **Path:** `{PLUGIN}/agents/deck-designer.md`
-- **Input:**
-  - Visual concept brief (from narrative)
-  - Feedback from auditors (if revision)
-- **Output:**
-  - HTML slide file (self-contained)
-  - Generation report (template, focal point, density, validation)
-- **Frameworks:** All 10 design frameworks enforced during generation
-- **Role:** HTML generation, template selection, frameworks enforcement
-- **When to invoke:** For each slide, receives brief from narrative, iterates based on audit feedback
-- **Iteration loop:** Designer → brand-audit → design-crit → [if issues] → designer revises
+- **Input (paths in the spawn prompt):** header block · `deck-brief.md` · `narrative-outline.md` + its slide range · `design-decisions.md` (the locked plan: template, visual, focal, accent per slide)
+- **Per slide:** `scripts/new_slide.py` (byte-copies the locked template, prints the body) → 2–6 `Edit`s → `scripts/log_slide.py`; `STATIC PASS/FAIL` verdict on every write, fixed before the next slide
+- **Per chunk:** one `scripts/qa.py --deck-dir D --files … --json`; a `SubagentStop` hook blocks the report while any slide fails
+- **Output:** `NN-slug.html` per slide; rows in `design-decisions.md` + `deck-state.json`; report = `log_slide.py --summary` + escalations
+- **Reads on demand only:** `references/designer-frameworks.md`, `designer-bespoke-svg.md` (+ `design-craft.md`, svg-reconstruct) for bespoke/chart/pipeline slides; `designer-collaboration.md` for the why
+- **Chunking:** always ≤ 5 slides per agent, all chunks in parallel; revisions via `SendMessage` to the owning agent or a fresh spawn with ≤ 3 fixes
 
 ---
 
 ### 4. Brand Audit
 - **Path:** `{PLUGIN}/agents/brand-audit.md`
-- **Input:** Slide HTML file
-- **Output:**
-  - Compliance report (pass/fail)
-  - Specific violations (with line numbers, evidence, fixes)
-- **Checks:** 9 objective criteria
-  1. WCAG AA contrast ratios
-  2. No raw hex colors (tokens only)
-  3. Logo placement & sizing
-  4. Footer format
-  5. Eyebrow format
-  6. Font sizes ≥14px
-  7. Font weights (only those in `typography.allowedWeights`)
-  8. Template mapping
-  9. Acronym expansion
-- **Role:** Mechanical compliance checking
-- **When to invoke:** After designer generates a slide, before design-crit
-- **Verdict:** Pass → move to design-crit; Fail → return to designer with violations
+- **Input (paths):** header block · deck folder (`deck-state.json` is the slide list) · `deck-brief.md` · `design-decisions.md` · any content check the orchestrator names
+- **Mechanical evidence:** one `scripts/qa.py --deck-dir D --json` run (palette census, class ban, floors, weights, `data-template`, head identity, contrast, overflow/collision, paint) — its FAILs are audit FAILs, never re-run per slide
+- **Judgment rows (no script):** logo placement & size · eyebrow format · acronym expansion · contrast over gradients/images — read via `scripts/slide_body.py`, values via `scripts/pack_brief.py`
+- **Output:** one table `slide | verdict | finding | fix`, ≤ 40 lines, plus a summary line
+- **When:** phase 5, in parallel with design-crit; `SendMessage` only for a judgment finding whose fix changed layout
 
 ---
 
 ### 5. Design Crit
 - **Path:** `{PLUGIN}/agents/design-crit.md`
-- **Input:**
-  - Slide HTML file (post brand-audit pass)
-  - Narrative context (what the slide should communicate)
+- **Input (paths):** header block · deck folder · `deck-brief.md` · `design-decisions.md` · `narrative-outline.md`; slides via `scripts/slide_body.py`; deck-level tally via `scripts/plan_check.py`
 - **Output:**
-  - Design critique (observations + suggestions)
-  - Framework assessment (10 frameworks reviewed)
-  - Approval or feedback for revision
+  - One table, ≤ 3 lines per slide: verdict (PASS / REVISE) · top finding (framework or named tell) · fix
+  - Deck-level verdict: `plan_check.py` output + named deck-level tells (~3 K tokens total)
+  - Worked examples and tone: `references/design-crit-examples.md`
 - **Reviews:** 10 design frameworks
   1. Visual Hierarchy — focal point clarity
   2. Typography Hierarchy — size/weight intentionality
@@ -107,8 +89,8 @@ The pipeline has three kinds of component and they are invoked differently:
   9. Accessibility & Plain Language — no jargon
   10. Presentation Narrative — slide role in deck story
 - **Role:** Principles-based design review
-- **When to invoke:** After brand-audit passes
-- **Verdict:** Approved → slide done; Major issues → back to designer; Minor suggestions → designer's call
+- **When to invoke:** Phase 5, in parallel with brand-audit (both read-only); `SendMessage` only for a targeted single-slide re-check
+- **Verdict:** PASS → done; REVISE → merged into the one revision batch; a template swap is re-checked by re-running `plan_check.py`, not by a second crit
 
 ---
 
@@ -161,7 +143,7 @@ The pipeline has three kinds of component and they are invoked differently:
   - `<name>.svg` — the reconstructed SVG, plus `verify_history.json` and a diff heatmap if a reference screenshot was supplied
 - **Role:** Specialist for deck-designer's "Bespoke SVG visuals" step — computes radial/segmented/repeating geometry via `svgkit` (trigonometry) instead of hand-authored path strings, and iterates against a render-vs-reference diff loop (Playwright render + PIL/numpy diff) rather than eyeballing.
 - **When to invoke:** Whenever deck-designer's bespoke-SVG path is about to hand-author a donut/pie/gauge/cycle/hub-spoke/org-chart/funnel/pyramid/chevron-process/matrix/venn/roadmap/timeline/flowchart shape, or whenever the user has referenced a screenshot the diagram must match. Not part of the required pre-workflow checklist — most decks never need it — but check for it whenever a slide brief's `Visual:` field is `bespoke` and the metaphor matches one of its 20 recipe types.
-- **Hands back to:** deck-designer, which merges the returned SVG fragment into the host template's content area, then continues its own Step 4 self-check and the normal brand-audit / design-crit gates — this skill's output is not exempt from those.
+- **Hands back to:** deck-designer, which merges the returned SVG fragment into the host template's content area (created with `new_slide.py`), then logs the slide `--visual bespoke`, renders it once to look at it, and runs the chunk's batch `qa.py` (paint check included) — this skill's output is not exempt from the normal brand-audit / design-crit gates.
 
 ---
 
@@ -221,19 +203,16 @@ ORCHESTRATOR: "Time to develop narrative."
 → LLM produces: narrative outline + visual concept briefs
 → LLM returns output to ORCHESTRATOR
 
-ORCHESTRATOR: "Time to generate slide 1."
-→ LLM reads: {PLUGIN}/agents/deck-designer.md
-→ LLM follows designer skill instructions
-→ LLM receives visual concept brief as input
-→ LLM produces: slide HTML + generation report
-→ LLM returns output for audit
+ORCHESTRATOR: "Design plan locked (plan_check.py PASS). Spawn chunks 1–5 and 6–10 in parallel."
+→ each chunk agent reads: {PLUGIN}/agents/deck-designer.md + the header block in its prompt
+→ per slide: new_slide.py → Edits (STATIC verdict on each) → log_slide.py
+→ chunk end: qa.py --files … --json (stop-gated)
+→ returns: log_slide.py --summary + escalations
 
-ORCHESTRATOR: "Audit this slide for compliance."
-→ LLM reads: {PLUGIN}/agents/brand-audit.md
-→ LLM follows brand audit instructions
-→ LLM receives: slide HTML
-→ LLM produces: compliance report (pass/fail + violations)
-→ LLM returns verdict to ORCHESTRATOR
+ORCHESTRATOR: "Audit the deck." (brand-audit ∥ design-crit, same turn)
+→ brand-audit runs qa.py --deck-dir D --json once, judgment rows via slide_body.py
+→ design-crit reads bodies via slide_body.py, deck tally via plan_check.py
+→ each returns one compact table to ORCHESTRATOR; fixes merged into one batch
 
 (and so on...)
 ```
@@ -249,26 +228,23 @@ ORCHESTRATOR: "Audit this slide for compliance."
 │   ├─ Input: structured brief + skeleton
 │   └─ Output: outline + visual concept briefs
 │
-├─→ deck-designer (for each slide)
-│   ├─ Input: visual concept brief + auditor feedback
-│   ├─ Output: slide HTML + report
-│   │
-│   ├─→ brand-audit (check compliance)
-│   │   ├─ Input: slide HTML
-│   │   ├─ Output: pass/fail + violations
-│   │   └─ If FAIL: return violations to designer (loop)
-│   │   └─ If PASS: move to next audit
-│   │
-│   └─→ design-crit (check principles)
-│       ├─ Input: slide HTML + narrative context
-│       ├─ Output: critique + suggestions
-│       └─ If major issues: return to designer (loop)
-│       └─ If approved: slide is done
+├─→ ORCHESTRATOR 4a (design plan: template + accent per slide → design-decisions.md; plan_check.py)
 │
-├─→ ORCHESTRATOR (assemble deck)
-│   ├─ Collect all approved slides
-│   ├─ Generate index.html (deck viewer)
-│   └─ Create deck metadata
+├─→ deck-designer × ⌈N/5⌉ chunks, in parallel
+│   ├─ Input: header block + paths (brief, outline range, locked plan)
+│   ├─ Per slide: new_slide.py → Edits → log_slide.py (static verdict per write)
+│   ├─ Per chunk: one qa.py --files … --json, stop-gated
+│   └─ Output: slides + log_slide.py --summary
+│
+├─→ ORCHESTRATOR (--summary + state-vs-disk diff + whole-deck qa.py --json)
+│
+├─→ brand-audit ∥ design-crit (read-only, spawned together)
+│   ├─ brand-audit: qa.py --deck-dir --json once + judgment rows → table ≤ 40 lines
+│   └─ design-crit: slide_body.py + plan_check.py → ≤ 3 lines/slide + deck verdict
+│
+├─→ ORCHESTRATOR (one merged fix list → designer; script re-checks; ≤ 2 rounds)
+│
+├─→ ORCHESTRATOR (assemble: scripts/assemble_deck.py → index.html + deck-metadata.json)
 │
 ├─→ §8 HTML preview (orchestrator, inline)
 │
@@ -296,15 +272,16 @@ keep deck *quality* consistent. The orchestrator sets them at intake and records
 - **What:** The per-deck **DENSITY** and **VARIANCE** dials — definitions, audience/outcome
   defaults, and the concrete effect on each sub-skill (density budget, template-repetition
   threshold, min-visual-slides count, breather cadence).
-- **Read by:** orchestrator (set at intake), narrative (brief `Density:` + visual spread),
-  designer (rhythm check + self-check budget), design-crit (Frameworks 3/7 targets).
+- **Read by:** orchestrator (set at intake; `plan_check.py` enforces the VARIANCE thresholds
+  on the phase-4a plan), narrative (brief `Density:` + visual spread), designer (density
+  budget in its per-slide judgment check), design-crit (Frameworks 3/7 targets).
 
 ### anti-slop-tells.md
 - **Path:** `./references/anti-slop-tells.md`
 - **What:** A named catalog of generic-deck "tells" that survive brand compliance
   (card-in-card, hero-less, centered-everything, template monotony, gradient overuse,
   decorative-only icons, wall-of-cards). Brand-agnostic only.
-- **Read by:** designer (Step-4 pre-flight tells scan), design-crit (anti-slop lens).
+- **Read by:** designer (tells scan in its per-slide judgment check), design-crit (anti-slop lens).
 
 ### deck-brief.md (per-deck artifact)
 - **Template:** `./templates/deck-brief-template.md`
@@ -342,8 +319,9 @@ keep deck *quality* consistent. The orchestrator sets them at intake and records
 │   │   ├── pptx-export/          ← §10 editable PPTX   (+ scripts/)
 │   │   └── svg-reconstruct/      ← all bespoke SVG (+ svgkit/, recipes/, configs/)
 │   ├── hooks/                  ← hooks.json + the hook scripts it registers
-│   ├── scripts/                ← the engine: ds_config, validate, check_*, qa,
-│   │                             fix_font_paths, pack_inventory, build_gallery, _paths
+│   ├── scripts/                ← the engine: ds_config, pack_brief, pack_inventory, plan_check,
+│   │                             new_slide, log_slide, slide_body, validate, render_checks,
+│   │                             check_*, qa, assemble_deck, fix_font_paths, build_gallery, _paths
 │   └── requirements.txt
 │
 └── imprimatur-design-system/   ← {PACK} — everything brand-specific

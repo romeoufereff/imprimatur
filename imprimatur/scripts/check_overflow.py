@@ -92,8 +92,41 @@ MEASURE_JS = """
 """
 
 
-def check_files(paths, ds):
+def analyze_overflow_page(page, ds, name):
+    """Run the overflow measurer on an ALREADY-LOADED page. Returns a violation list
+    (already filtered for sanctioned decor-bleed / legacy allowlist), or None on error
+    (in which case the second return value is the error string).
+
+    Pulled out of check_files() so render_checks.py (WP1) can share one Chromium launch
+    across overflow + collisions + contrast + paint instead of each script opening its
+    own browser.
+    """
     decor_bleed_ok = set(ds.get('exemptions.decorBleedAllowlist', []) or [])
+    res = page.evaluate(MEASURE_JS.replace('%EPS%', str(EPS)))
+    if 'error' in res:
+        return None, res['error']
+    viol = res['violations']
+    # Attribute-level sanctioning (preferred): non-text elements marked
+    # data-decor-bleed="ok" may bleed; text must stay on-canvas regardless.
+    viol = [v for v in viol if v['hasText'] or not v.get('sanctioned')]
+    if name in decor_bleed_ok:
+        viol = [v for v in viol if v['hasText']]  # legacy filename allowlist
+    return viol, None
+
+
+def format_overflow_report(name, viol):
+    lines = []
+    if viol:
+        lines.append(name)
+        for v in viol[:8]:
+            label = v['text'] or v['cls'] or v['tag']
+            lines.append(f'  FAIL  <{v["tag"]}> overflows canvas by {v["over"]}px — {label!r}')
+        if len(viol) > 8:
+            lines.append(f'  … and {len(viol) - 8} more')
+    return lines
+
+
+def check_files(paths, ds):
     cw, ch = ds.canvas
     failures = 0
     with sync_playwright() as p:
@@ -104,25 +137,14 @@ def check_files(paths, ds):
             page.goto('file://' + os.path.abspath(path), wait_until='networkidle')
             page.evaluate("document.fonts.ready || Promise.resolve()")
             page.wait_for_timeout(400)  # let the Tailwind CDN inject styles
-            res = page.evaluate(MEASURE_JS.replace('%EPS%', str(EPS)))
-            if 'error' in res:
-                print(f'{name}\n  FAIL  {res["error"]}')
+            viol, err = analyze_overflow_page(page, ds, name)
+            if viol is None:
+                print(f'{name}\n  FAIL  {err}')
                 failures += 1
                 continue
-            viol = res['violations']
-            # Attribute-level sanctioning (preferred): non-text elements marked
-            # data-decor-bleed="ok" may bleed; text must stay on-canvas regardless.
-            viol = [v for v in viol if v['hasText'] or not v.get('sanctioned')]
-            if name in decor_bleed_ok:
-                viol = [v for v in viol if v['hasText']]  # legacy filename allowlist
-            if viol:
-                print(name)
-                for v in viol[:8]:
-                    label = v['text'] or v['cls'] or v['tag']
-                    print(f'  FAIL  <{v["tag"]}> overflows canvas by {v["over"]}px — {label!r}')
-                if len(viol) > 8:
-                    print(f'  … and {len(viol) - 8} more')
-                failures += len(viol)
+            for line in format_overflow_report(name, viol):
+                print(line)
+            failures += len(viol)
         browser.close()
     return failures
 
@@ -217,6 +239,29 @@ COLLIDE_JS = """
 """
 
 
+def analyze_collisions_page(page, tol):
+    """Run the collision detector on an ALREADY-LOADED page. Returns (collisions, error)."""
+    res = page.evaluate(COLLIDE_JS, tol)
+    if 'error' in res:
+        return None, res['error']
+    return res['collisions'], None
+
+
+def format_collisions_report(name, cols):
+    lines = []
+    if cols:
+        lines.append(name)
+        for c in cols[:6]:
+            la = c['a']['txt'] or c['a']['cls'] or c['a']['tag']
+            lb = c['b']['txt'] or c['b']['cls'] or c['b']['tag']
+            lines.append(f'  FAIL  {c["kind"]} — {c["ox"]}x{c["oy"]}px\n'
+                        f'          {la!r}\n'
+                        f'          {lb!r}')
+        if len(cols) > 6:
+            lines.append(f'  … and {len(cols) - 6} more')
+    return lines
+
+
 def check_collisions(paths, ds):
     tol = float(ds.get('collisionTolerancePx', 4))
     cw, ch = ds.canvas
@@ -229,23 +274,14 @@ def check_collisions(paths, ds):
             page.goto('file://' + os.path.abspath(path), wait_until='networkidle')
             page.evaluate("document.fonts.ready || Promise.resolve()")
             page.wait_for_timeout(400)
-            res = page.evaluate(COLLIDE_JS, tol)
-            if 'error' in res:
-                print(f'{name}\n  FAIL  {res["error"]}')
+            cols, err = analyze_collisions_page(page, tol)
+            if cols is None:
+                print(f'{name}\n  FAIL  {err}')
                 failures += 1
                 continue
-            cols = res['collisions']
-            if cols:
-                print(name)
-                for c in cols[:6]:
-                    la = c['a']['txt'] or c['a']['cls'] or c['a']['tag']
-                    lb = c['b']['txt'] or c['b']['cls'] or c['b']['tag']
-                    print(f'  FAIL  {c["kind"]} — {c["ox"]}x{c["oy"]}px\n'
-                          f'          {la!r}\n'
-                          f'          {lb!r}')
-                if len(cols) > 6:
-                    print(f'  … and {len(cols) - 6} more')
-                failures += len(cols)
+            for line in format_collisions_report(name, cols):
+                print(line)
+            failures += len(cols)
         browser.close()
     return failures
 

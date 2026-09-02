@@ -335,11 +335,36 @@ def load(explicit=None):
     return ds
 
 
+def _print_header(ds, deck_dir):
+    """WP8: the ready-to-paste boot-sequence block every spawn prompt and
+    SendMessage carries as its first line, so a fresh agent never has to
+    `find` / `ls ~/.claude/plugins` its way to the plugin, pack, or deck.
+    """
+    deck_abs = os.path.abspath(deck_dir) if deck_dir else "<unset>"
+    print(f"PLUGIN={PLUGIN_ROOT} · PACK={ds.root} · DECK={deck_abs} · DS_NAME={ds.name}")
+
+
 if __name__ == "__main__":
-    ds = load()
-    print(f"{ds.name}  (id={ds.id}, prefix={ds.token_prefix})")
-    print(f"root:      {ds.root}")
-    print(f"templates: {ds.templates_dir}")
-    print(f"canvas:    {ds.canvas[0]}x{ds.canvas[1]}")
-    on = sorted(k for k, v in (ds.get("rules", {}) or {}).items() if v is True)
-    print(f"rules on:  {', '.join(on)}")
+    import argparse
+    ap = argparse.ArgumentParser(
+        description="Design-system resolver — inspect the active pack, or print its "
+                    "boot-sequence header block.")
+    ap.add_argument("--design-system", default=None, help="Override the active pack")
+    ap.add_argument("--header", action="store_true",
+                    help="Print 'PLUGIN=<abs> · PACK=<abs> · DECK=<abs> · DS_NAME=<name>' "
+                        "instead of the human-readable summary (WP8)")
+    ap.add_argument("--deck-dir", default=None,
+                    help="Deck folder for DECK= in --header (falls back to $DECK, else '<unset>')")
+    args = ap.parse_args()
+
+    ds = load(args.design_system)
+
+    if args.header:
+        _print_header(ds, args.deck_dir or os.environ.get("DECK"))
+    else:
+        print(f"{ds.name}  (id={ds.id}, prefix={ds.token_prefix})")
+        print(f"root:      {ds.root}")
+        print(f"templates: {ds.templates_dir}")
+        print(f"canvas:    {ds.canvas[0]}x{ds.canvas[1]}")
+        on = sorted(k for k, v in (ds.get("rules", {}) or {}).items() if v is True)
+        print(f"rules on:  {', '.join(on)}")

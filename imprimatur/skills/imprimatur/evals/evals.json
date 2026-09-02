@@ -141,8 +141,8 @@
       "complexity": "high",
       "estimated_slides": 10,
       "cost_tracking": {
-        "expected_designer_spawns": 1,
-        "note": "10 slides is at the ≤10 threshold — single-batch spawn, no chunking. Record actual total_tokens/total_turns as the small-deck baseline for comparison against eval 11's chunked run."
+        "expected_designer_spawns": 2,
+        "note": "10 slides = two parallel chunks of 5 (chunks are always ≤ 5 slides). Record per-agent turns, ctx peak and minutes as the small-deck baseline for comparison against eval 11's larger run."
       },
       "files": []
     },
@@ -163,8 +163,8 @@
       "complexity": "medium",
       "estimated_slides": 7,
       "cost_tracking": {
-        "expected_designer_spawns": 1,
-        "note": "Below the ≤10 threshold — single-batch spawn."
+        "expected_designer_spawns": 2,
+        "note": "Two parallel chunks (≤ 5 slides each)."
       },
       "files": []
     },
@@ -186,8 +186,8 @@
       "complexity": "medium-high",
       "estimated_slides": 8,
       "cost_tracking": {
-        "expected_designer_spawns": 1,
-        "note": "Below the ≤10 threshold — single-batch spawn."
+        "expected_designer_spawns": 2,
+        "note": "Two parallel chunks (≤ 5 slides each)."
       },
       "files": []
     },
@@ -195,9 +195,9 @@
       "id": 11,
       "tier": "acceptance",
       "name": "large-deck-chunked-designer",
-      "description": "20-slide Executive Readout — the acceptance eval that actually exercises the §4 agent-lifetime cap, since evals 7-9 all sit at or under the 10-slide threshold and never trigger chunking",
+      "description": "20-slide Executive Readout — the acceptance eval that exercises §4 at scale: four parallel ≤ 5-slide chunks against a pre-locked design plan, where cross-chunk consistency comes from design-decisions.md + plan_check.py rather than agent memory",
       "prompt": "We need an Executive Readout for a data platform modernization program at a large retail client (fictional: 'Norstrand Retail'). Audience is C-suite plus a steering committee. 20 slides covering: situation, proposed solution, architecture, a phased rollout across 4 workstreams, risk mitigation, investment breakdown, a 12-month timeline, governance model, and closing with decisions and an ask. High variance — this needs real visual rhythm across 20 slides, not a wall of cards.",
-      "expected_output": "A complete 20-slide on-brand deck. Because slide count exceeds 10, phase 4 must run as multiple designer-agent spawns (4-6 slides each, ~4 chunks) rather than one continuous agent.",
+      "expected_output": "A complete 20-slide on-brand deck. Phase 4 runs as four designer-agent spawns (≤ 5 slides each) launched in the same turn with run_in_background: true, after the orchestrator's design plan passed plan_check.py.",
       "acceptance_criteria": [
         "All 20 slides generated successfully",
         "design-decisions.md shows entries spanning the full deck, not just the last chunk — confirms cross-chunk continuity held",
@@ -211,7 +211,7 @@
       "estimated_slides": 20,
       "cost_tracking": {
         "expected_designer_spawns": 4,
-        "note": "ceil(20/6)=4 chunks under the §4 cap. Record: total_tokens and total_turns for phase 4 as a whole (sum across all designer spawns), tokens/turns for the single largest spawn (should not dwarf the others — if one chunk's transcript is growing much faster than a fresh chunk's, the cap isn't resetting cost the way it's supposed to), and any crash/retry during phase 4. Compare the per-slide token cost here against eval 7's per-slide cost (10 slides, unchunked) — this is the number that should stay roughly flat as deck size grows instead of compounding, which is the whole point of the cap."
+        "note": "ceil(20/5)=4 chunks, all in parallel. Record with scripts/telemetry/session_stats.py: per chunk agent — turns per slide (target ≤ 6), ctx peak (target ≤ 150 K), minutes, tool results > 100 KB (target 0), hook_visible (target true); phase-4 wall-clock (should be roughly that of the slowest chunk, not the sum); any stop-gate block and how many re-runs it took. Compare per-slide cost against eval 7 (10 slides, 2 chunks) — it should stay flat as deck size grows."
       },
       "files": []
     }

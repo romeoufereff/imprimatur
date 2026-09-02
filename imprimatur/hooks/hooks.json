@@ -37,6 +37,26 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/export_gate.py\""
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/block_large_template_read.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^imprimatur:deck-designer$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/designer_stop_gate.py\""
+          }
+        ]
       }
     ]
   }

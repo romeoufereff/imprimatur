@@ -113,6 +113,61 @@ def contrast_ratio(fg, bg):
     return (l1 + 0.05) / (l2 + 0.05)
 
 
+def analyze_page(page):
+    """Run the contrast collector on an ALREADY-LOADED page. Returns (fails, manual):
+    `fails` is a list of (item, ratio, need) hard WCAG failures; `manual` is a count of
+    elements needing a human look (gradient/image bg, or no resolvable bg at all).
+    Returns (None, error_string) when the page has no #slide element.
+
+    Pulled out of check_files() so render_checks.py (WP1) can share one Chromium launch
+    across contrast + overflow + paint instead of each script opening its own browser.
+    """
+    res = page.evaluate(COLLECT_JS)
+    if 'error' in res:
+        return None, res['error']
+    fails, manual = [], 0
+    for it in res['items']:
+        if it['bgImage']:
+            manual += 1
+            continue
+        base = _composite(tuple(it['bg'])) if it['bg'] else (255.0, 255.0, 255.0)
+        # apply translucent layers bottom-up (walk collected them top-down)
+        for layer in reversed(it.get('layers') or []):
+            base = _composite(tuple(layer), base)
+        fg = _composite(tuple(it['color']), base)
+        ratio = contrast_ratio(fg, base)
+        large = it['fontSize'] >= 24 or (it['fontSize'] >= 18.66 and it['fontWeight'] >= 700)
+        need = 3.0 if large else 4.5
+        if ratio < need - 0.005:
+            if it['bg'] is None:
+                # No computed background found up the chain and the white
+                # assumption fails — the bg is likely painted by a pseudo-element
+                # or absolute layer the walker can't see. Human check, not FAIL.
+                manual += 1
+                continue
+            fails.append((it, ratio, need))
+    return fails, manual
+
+
+def format_report(name, fails, manual, verbose=True):
+    """Render the text check_files() has always printed, from analyze_page()'s output.
+    `verbose=False` drops the "verify manually" note line (WP1: that note costs agent
+    turns and belongs to brand-audit's judgment rows, not the designer-facing output).
+    """
+    lines = []
+    if fails or manual:
+        lines.append(name)
+        for it, ratio, need in fails[:10]:
+            label = it['text'] or it['cls'] or it['tag']
+            lines.append(f'  FAIL  <{it["tag"]}> {ratio:.2f}:1 < {need}:1 '
+                         f'({it["fontSize"]:.0f}px w{it["fontWeight"]}) — {label!r}')
+        if len(fails) > 10:
+            lines.append(f'  … and {len(fails) - 10} more')
+        if manual and verbose:
+            lines.append(f'  note  {manual} element(s) over gradient/image backgrounds — verify manually')
+    return lines
+
+
 def check_files(paths, ds):
     cw, ch = ds.canvas
     failures = 0
@@ -124,42 +179,13 @@ def check_files(paths, ds):
             page.goto('file://' + os.path.abspath(path), wait_until='networkidle')
             page.evaluate("document.fonts.ready || Promise.resolve()")
             page.wait_for_timeout(400)  # let the Tailwind CDN inject styles
-            res = page.evaluate(COLLECT_JS)
-            if 'error' in res:
-                print(f'{name}\n  FAIL  {res["error"]}')
+            fails, manual = analyze_page(page)
+            if fails is None:
+                print(f'{name}\n  FAIL  {manual}')
                 failures += 1
                 continue
-            fails, manual = [], 0
-            for it in res['items']:
-                if it['bgImage']:
-                    manual += 1
-                    continue
-                base = _composite(tuple(it['bg'])) if it['bg'] else (255.0, 255.0, 255.0)
-                # apply translucent layers bottom-up (walk collected them top-down)
-                for layer in reversed(it.get('layers') or []):
-                    base = _composite(tuple(layer), base)
-                fg = _composite(tuple(it['color']), base)
-                ratio = contrast_ratio(fg, base)
-                large = it['fontSize'] >= 24 or (it['fontSize'] >= 18.66 and it['fontWeight'] >= 700)
-                need = 3.0 if large else 4.5
-                if ratio < need - 0.005:
-                    if it['bg'] is None:
-                        # No computed background found up the chain and the white
-                        # assumption fails — the bg is likely painted by a pseudo-element
-                        # or absolute layer the walker can't see. Human check, not FAIL.
-                        manual += 1
-                        continue
-                    fails.append((it, ratio, need))
-            if fails or manual:
-                print(name)
-                for it, ratio, need in fails[:10]:
-                    label = it['text'] or it['cls'] or it['tag']
-                    print(f'  FAIL  <{it["tag"]}> {ratio:.2f}:1 < {need}:1 '
-                          f'({it["fontSize"]:.0f}px w{it["fontWeight"]}) — {label!r}')
-                if len(fails) > 10:
-                    print(f'  … and {len(fails) - 10} more')
-                if manual:
-                    print(f'  note  {manual} element(s) over gradient/image backgrounds — verify manually')
+            for line in format_report(name, fails, manual, verbose=True):
+                print(line)
             failures += len(fails)
         browser.close()
     return failures

@@ -96,6 +96,121 @@ CLIENT_LOGO_SVG_RE = re.compile(
 # re-wraps at every viewport, and exports diverge from the HTML preview).
 SCALER_TRANSFORM_RE = re.compile(r"\.style\.transform\s*=\s*['\`]scale\(")
 
+# ── head-identity check (WP2) ───────────────────────────────────────────────
+# "Copy the template verbatim" turned out, in every observed transcript, to mean
+# "retype 7-24K tokens of identical boilerplate from memory" — half of every slide
+# write, and the actual mechanism behind brand drift (a retyped hex, a dropped
+# @font-face rule, a subtly wrong scaler). new_slide.py (WP2) now does the copy in
+# a script instead, so this check turns "was it actually copied" into a diff
+# instead of a heuristic: a deck slide's <head> must match its OWN claimed source
+# template's <head>, not the model's memory of what EPAM slides tend to look like.
+#
+# Deliberately NOT compared against the pack's slide-base.html: that file's head is
+# NOT byte-identical to the templates' heads in this pack today (different
+# minification, different comments) — a real, pre-existing inconsistency, confirmed
+# against all 70 shipped templates. Comparing against the file's OWN declared
+# data-template source is what a byte-for-byte copy actually promises, and it is
+# what new_slide.py always produces regardless of which template family it copied.
+#
+# The comparison is a NORMALIZED SUPERSET check, not raw byte equality, for two
+# reasons found in real decks (STADA fixture, 2026-09):
+#   1. Whitespace/comment reflow: the pack's template files have been reformatted
+#      (blank lines, `// comment` additions) since some already-shipped deck slides
+#      were copied from an earlier version of the same template. Title text also
+#      legitimately differs (deck slide title vs. the template's generic title).
+#   2. Sanctioned additions: a slide may deliberately extend its <style> block with
+#      one extra rule (e.g. `.gradient-border-featured`) documented in
+#      design-decisions.md. That is composition, not drift — the check must not
+#      penalize an addition that changes nothing the template already declared.
+# What it still catches: a wrong token value, a dropped @font-face block, a
+# retyped scaler, or a head assembled from memory that only resembles the
+# original — none of those survive as a literal (whitespace/comment-insensitive)
+# substring of the template's own head text.
+_HEAD_TITLE_RE = re.compile(r'<title\b[^>]*>.*?</title>', re.S | re.I)
+_HEAD_HTML_COMMENT_RE = re.compile(r'<!--.*?-->', re.S)
+# Strips a `// comment` to end-of-line, whether it's the whole line (a template
+# reformat added several, e.g. "// eyebrows/captions/sub-labels — WCAG-safe") or
+# trailing after code. The `(?<!:)` negative lookbehind is what keeps this from
+# corrupting `https://cdn.tailwindcss.com` — a URL's "//" is always preceded by
+# ':', a comment's never is.
+_HEAD_LINE_COMMENT_RE = re.compile(r'(?<!:)//[^\n]*')
+_HEAD_BLOCK_COMMENT_RE = re.compile(r'/\*.*?\*/', re.S)
+DATA_TEMPLATE_RE = re.compile(r'data-template="([^"]+)"')
+
+
+def extract_head(html_text):
+    m = re.search(r'^(.*?)</head\s*>', html_text, re.S | re.I)
+    return m.group(1) if m else html_text
+
+
+def normalize_head(head_text):
+    """Whitespace/comment-insensitive, title-excluded form for the superset check."""
+    t = _HEAD_TITLE_RE.sub('', head_text)
+    t = _HEAD_HTML_COMMENT_RE.sub('', t)
+    t = _HEAD_LINE_COMMENT_RE.sub('', t)
+    t = _HEAD_BLOCK_COMMENT_RE.sub('', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+
+def head_identity_check(path, s, ds, template_stems):
+    """Returns a FAIL message, or None if the slide's head matches (or has no
+    checkable claim on) its declared source template."""
+    name = os.path.basename(path)
+    if name == os.path.basename(ds.base_file):
+        return None
+    # Only meaningful for an actual DECK SLIDE (an `NN-slug.html` file living
+    # OUTSIDE the pack) claiming to be a byte-copy. ANY file under the pack root
+    # — templates/, snippets/, charts/, evals/ (seeded off-brand fixtures,
+    # audit-eval targets), fonts/, references/ — is excluded wholesale, not just
+    # templates/snippets/charts individually: a sweep over snippets/*.html once
+    # flagged bar-chart.html and donut-chart.html this way (they name
+    # "42-data-chart" as a related template via data-template for provenance,
+    # without being a byte-copy of it), and the pack's evals/stage-brand-audit
+    # seeded fixtures carry deliberately-wrong data-template claims by design —
+    # this check has no business running on either.
+    abspath = os.path.abspath(path)
+    try:
+        if os.path.commonpath([abspath, os.path.abspath(ds.root)]) == os.path.abspath(ds.root):
+            return None
+    except ValueError:
+        pass
+    m = DATA_TEMPLATE_RE.search(s)
+    if not m or template_stems is None or m.group(1) not in template_stems:
+        return None  # requireDataTemplate (if on) already reports a missing/bad attribute
+    stem = m.group(1)
+    template_path = os.path.join(ds.templates_dir, stem + '.html')
+    try:
+        template_text = open(template_path, encoding='utf-8').read()
+    except OSError:
+        return None
+    slide_norm = normalize_head(extract_head(s))
+    template_norm = normalize_head(extract_head(template_text))
+    if not template_norm:
+        return None
+
+    # Not a plain substring test: a sanctioned addition can land in the MIDDLE of
+    # the template's content (e.g. one extra CSS rule inserted before </style>),
+    # which splits the template's own text into a prefix and a suffix around it —
+    # still fully present, just no longer contiguous. difflib's opcodes give the
+    # real invariant: every piece of the template must appear in the slide
+    # ('equal'), and the ONLY difference allowed is the slide having MORE text
+    # ('insert') — never 'delete' (something from the template is missing) or
+    # 'replace' (something from the template was changed).
+    import difflib
+    sm = difflib.SequenceMatcher(None, template_norm, slide_norm, autojunk=False)
+    bad_ops = [op for op in sm.get_opcodes() if op[0] in ('delete', 'replace')]
+    if bad_ops:
+        # Report the largest offending template span so the message points at
+        # something concrete instead of just "it's different."
+        tag, i1, i2, j1, j2 = max(bad_ops, key=lambda op: op[2] - op[1])
+        snippet = template_norm[i1:i2][:80]
+        return (f'head block does not match its declared template "{stem}" — the slide is '
+                f'missing or has altered: "{snippet}"{"…" if i2 - i1 > 80 else ""}. It may have '
+                f'been retyped from memory instead of copied byte-for-byte. Use '
+                f'scripts/new_slide.py to (re)create it, or diff the two <head> blocks by hand '
+                f'if this is a deliberate, documented head change.')
+    return None
+
 
 def _norm_hex(h):
     """Normalize a 3- or 6-digit hex (without '#') to uppercase 6-digit."""
@@ -387,6 +502,13 @@ def check_file(path, ds, tokens, gradients=None, palette=None, template_stems=No
         elif mt.group(1) not in template_stems:
             fails.append(f'data-template="{mt.group(1)}" does not match any file in '
                          f'{os.path.basename(ds.templates_dir)}/')
+
+    # --- head identity: was this slide actually copied from its claimed template? ---
+    # Unconditional (not gated behind a pack rule) — this is an engine-side integrity
+    # check on the copy-then-edit promise (WP2), not a brand rule the pack declares.
+    head_msg = head_identity_check(path, s, ds, template_stems)
+    if head_msg:
+        fails.append(head_msg)
 
     lib = ds.get('charts.library')
     if lib and lib in s and (ds.get('charts.requiredMarker') or '') not in s:

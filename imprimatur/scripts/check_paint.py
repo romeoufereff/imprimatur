@@ -109,6 +109,39 @@ CHECK_JS = """
 """
 
 
+def analyze_paint_page(page):
+    """Run the paint-reference checker on an ALREADY-LOADED page. Returns (violations, error).
+
+    Pulled out of check_files() so render_checks.py (WP1) can share one Chromium launch
+    across contrast + overflow + paint instead of each script opening its own browser.
+    """
+    res = page.evaluate(CHECK_JS)
+    if 'error' in res:
+        return None, res['error']
+    return res['violations'], None
+
+
+def format_paint_report(name, viol):
+    lines = []
+    if viol:
+        lines.append(name)
+        for v in viol[:10]:
+            if v['issue'] == 'broken-ref':
+                lines.append(f'  FAIL  <{v["tag"]}> {v["label"]!r} {v["prop"]}=url(#{v["id"]}) '
+                             f'— no element with id="{v["id"]}" exists')
+            else:
+                bb = v['bbox']
+                lines.append(f'  FAIL  <{v["tag"]}> {v["label"]!r} {v["prop"]}=url(#{v["id"]}) '
+                             f'uses a default/objectBoundingBox gradient on a shape whose '
+                             f'own bbox is {bb["w"]}x{bb["h"]} — a zero dimension makes the '
+                             f'gradient transform degenerate and Chromium drops the paint '
+                             f'silently. Fix: add gradientUnits="userSpaceOnUse" with explicit '
+                             f'x1/y1/x2/y2 coordinates on #{v["id"]}.')
+        if len(viol) > 10:
+            lines.append(f'  … and {len(viol) - 10} more')
+    return lines
+
+
 def check_files(paths, ds):
     failures = 0
     cw, ch = ds.canvas
@@ -120,30 +153,14 @@ def check_files(paths, ds):
             page.goto('file://' + os.path.abspath(path), wait_until='networkidle')
             page.evaluate("document.fonts.ready || Promise.resolve()")
             page.wait_for_timeout(400)  # let the Tailwind CDN inject styles
-            res = page.evaluate(CHECK_JS)
-            if 'error' in res:
-                print(f'{name}\n  FAIL  {res["error"]}')
+            viol, err = analyze_paint_page(page)
+            if viol is None:
+                print(f'{name}\n  FAIL  {err}')
                 failures += 1
                 continue
-
-            viol = res['violations']
-            if viol:
-                print(name)
-                for v in viol[:10]:
-                    if v['issue'] == 'broken-ref':
-                        print(f'  FAIL  <{v["tag"]}> {v["label"]!r} {v["prop"]}=url(#{v["id"]}) '
-                              f'— no element with id="{v["id"]}" exists')
-                    else:
-                        bb = v['bbox']
-                        print(f'  FAIL  <{v["tag"]}> {v["label"]!r} {v["prop"]}=url(#{v["id"]}) '
-                              f'uses a default/objectBoundingBox gradient on a shape whose '
-                              f'own bbox is {bb["w"]}x{bb["h"]} — a zero dimension makes the '
-                              f'gradient transform degenerate and Chromium drops the paint '
-                              f'silently. Fix: add gradientUnits="userSpaceOnUse" with explicit '
-                              f'x1/y1/x2/y2 coordinates on #{v["id"]}.')
-                if len(viol) > 10:
-                    print(f'  … and {len(viol) - 10} more')
-                failures += len(viol)
+            for line in format_paint_report(name, viol):
+                print(line)
+            failures += len(viol)
         browser.close()
     return failures
 
