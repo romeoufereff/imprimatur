@@ -6,13 +6,18 @@ Loads a slide in headless Chromium at the native 1920x1080 viewport (the scaler 
 to scale(1) there, so getBoundingClientRect() values ARE slide pixels) and walks the
 #slide DOM into a flat, z-ordered list of primitives:
 
-  box    — element with a visible solid background and/or border → PPTX (rounded) rectangle
+  box    — element with a visible solid background and/or border → PPTX (rounded) rectangle;
+           a fully-opaque element whose background-image is exactly one simple
+           linear-gradient (a brand-ramp badge, dot, divider bar, chart bar) is ALSO a box,
+           carrying a `gradient` field the builder renders as a native gradFill instead of
+           a flat colour — editable shape, not a picture.
   text   — "text leaf" (block element whose element descendants are all inline) → PPTX
            textbox with styled runs (size, weight, color, uppercase applied, alignment)
   raster — anything computed styles can't faithfully describe: <svg>, <canvas> (ECharts),
-           <img>, and any element with a background-image (brand gradients, decorative
-           blobs) → element screenshot PNG placed as a picture. Descendants are baked in
-           and NOT walked further.
+           <img>, a translucent (opacity < 1) decorative wash, or any other
+           background-image (photos, layered/radial gradients, repeating patterns) →
+           element screenshot PNG placed as a picture. Descendants are baked in and NOT
+           walked further.
 
 Gradient text (background-clip:text) keeps its glyphs editable: the run is emitted with
 color=the design system's primary and flagged "accent" — a documented approximation, since PPTX has
@@ -65,6 +70,26 @@ WALK_JS = r"""
     return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]] : null;
   };
   const hex = (rgb) => '#' + rgb.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+  // Single linear-gradient(Ndeg, #hex P%, ...) -> {angle, stops:[{color,pos}]}, or null
+  // for anything else (radial, multiple layers, no explicit stop percentages) — the
+  // shape this engine can turn into a native PPTX gradient fill, nothing fancier.
+  const parseGrad = (bgi) => {
+    if (!bgi || bgi === 'none') return null;
+    const single = bgi.match(/^linear-gradient\((.+)\)$/);
+    const gradCount = (bgi.match(/gradient\(/g) || []).length;
+    if (!single || gradCount !== 1) return null;
+    const inner = single[1];
+    const angM = inner.match(/^\s*([\d.]+)deg\s*,/);
+    const stops = [];
+    const re = /rgba?\([\d.,\s]+\)\s*([\d.]+)%/g;
+    let m;
+    while ((m = re.exec(inner)) !== null) {
+      const col = parse(m[0]);
+      if (col) stops.push({ color: hex(col), pos: parseFloat(m[1]) });
+    }
+    if (angM && stops.length >= 2) return { angle: parseFloat(angM[1]), stops };
+    return null;
+  };
   const rectOf = (el) => {
     const r = el.getBoundingClientRect(), s = slide.getBoundingClientRect();
     return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height };
@@ -84,23 +109,11 @@ WALK_JS = r"""
   };
   if (slideNode.bgImage) {
     const bgi = scs.backgroundImage;
-    const single = bgi.match(/^linear-gradient\((.+)\)$/);
-    const gradCount = (bgi.match(/gradient\(/g) || []).length;
-    if (single && gradCount === 1) {                       // exactly one gradient, nothing layered
-      const inner = single[1];
-      const angM = inner.match(/^\s*([\d.]+)deg\s*,/);
-      const stops = [];
-      const re = /rgba?\([\d.,\s]+\)\s*([\d.]+)%/g;
-      let m;
-      while ((m = re.exec(inner)) !== null) {
-        const col = parse(m[0]);
-        if (col) stops.push({ color: hex(col), pos: parseFloat(m[1]) });
-      }
-      if (angM && stops.length >= 2) {
-        slideNode.bgGradient = { angle: parseFloat(angM[1]), stops };
-        slideNode.bgGradientCss = bgi;
-        slideNode.bgImage = false;           // native gradient — do NOT full-raster
-      }
+    const grad = parseGrad(bgi);
+    if (grad) {
+      slideNode.bgGradient = grad;
+      slideNode.bgGradientCss = bgi;
+      slideNode.bgImage = false;           // native gradient — do NOT full-raster
     }
   }
 
@@ -135,6 +148,10 @@ WALK_JS = r"""
         weight: parseInt(cs.fontWeight, 10) || 400,
         color: accent ? '__DS_ACCENT__' : (col ? hex(col) : '__DS_INK__'),
         accent,
+        // the deck's OWN computed gradient (respects any !important override style
+        // block), not the pack's generic default — a deck that overrides the brand
+        // ramp (e.g. dropping violet) must export that ramp, not the pack's raw one.
+        accentGradient: accent ? cs.backgroundImage : undefined,
         upper: cs.textTransform === 'uppercase',
         italic: cs.fontStyle === 'italic',
         spacing: ls,
@@ -205,7 +222,8 @@ WALK_JS = r"""
       const lh = parseFloat(c.lineHeight);
       return { size, weight: parseInt(c.fontWeight, 10) || 400,
                color: accent ? '__DS_ACCENT__' : (col ? hex(col) : '__DS_INK__'),
-               accent, upper: c.textTransform === 'uppercase',
+               accent, accentGradient: accent ? c.backgroundImage : undefined,
+               upper: c.textTransform === 'uppercase',
                italic: c.fontStyle === 'italic', spacing: ls,
                lineHeight: isFinite(lh) ? lh : Math.round(size * 1.2) };
     };
@@ -260,10 +278,20 @@ WALK_JS = r"""
     // run BEFORE the raster branch or accent words ship as mid-title PNGs (v1 bug).
     const clipText = (cs.webkitBackgroundClip || cs.backgroundClip) === 'text';
 
+    // A background-image that's exactly one simple linear-gradient (a brand-ramp badge,
+    // dot, divider bar, chart bar — not a photo, not layered) is a shape with a gradient
+    // fill, not a picture: parse it BEFORE the raster branch so it can flow into the box
+    // path below instead of being screenshotted. Guarded to fully-opaque elements only —
+    // a box fill can't reproduce a translucent (opacity < 1) decorative wash the way a
+    // screenshot does, so those keep going through raster unchanged.
+    const elGrad = (!clipText && tag !== 'canvas' && tag !== 'img' && tag !== 'svg' &&
+                    parseFloat(cs.opacity) > 0.99)
+      ? parseGrad(cs.backgroundImage) : null;
+
     // Raster cases — screenshot, don't descend. SVGs additionally get serialized so the
     // builder can embed them as native vector (svgBlip) with the PNG as fallback.
     if (tag === 'canvas' || tag === 'img' ||
-        (!clipText && cs.backgroundImage && cs.backgroundImage !== 'none') ||
+        (!clipText && !elGrad && cs.backgroundImage && cs.backgroundImage !== 'none') ||
         (tag === 'svg')) {
       el.setAttribute('data-ir-raster', String(rasterSeq));
       out.push({ kind: 'raster', id: rasterSeq++, rect: r, isSvg: tag === 'svg',
@@ -274,7 +302,7 @@ WALK_JS = r"""
     // Box: visible solid fill and/or borders — PER SIDE. Divider rules are drawn with a
     // single border-bottom/top and no fill; the old top-only check dropped them.
     const bgc = parse(cs.backgroundColor);
-    const hasFill = bgc && bgc[3] > 0.05;
+    const hasFill = (bgc && bgc[3] > 0.05) || !!elGrad;
     const sides = {};
     for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
       const w = parseFloat(cs[`border${side}Width`]) || 0;
@@ -287,8 +315,10 @@ WALK_JS = r"""
     if (hasFill || nSides === 4) {
       out.push({
         kind: 'box', rect: r,
-        fill: hasFill ? hex(bgc) : null,
-        fillAlpha: hasFill ? bgc[3] : 0,
+        fill: bgc && bgc[3] > 0.05 ? hex(bgc) : null,
+        fillAlpha: bgc && bgc[3] > 0.05 ? bgc[3] : 0,
+        gradient: elGrad || undefined,
+        gradientCss: elGrad ? cs.backgroundImage : undefined,
         border: nSides === 4 ? sides.Top : (sides.Left || sides.Top || null),
         radius: parseFloat(cs.borderTopLeftRadius) || 0,
       });

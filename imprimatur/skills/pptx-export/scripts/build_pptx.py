@@ -6,7 +6,7 @@ Renders the IR emitted by extract_ir.py into a 16:9 .pptx via python-pptx:
 
   slide bg → solid fill, or the full-slide screenshot as a base picture when the
              background is a gradient (covers, section dividers)
-  box      → (rounded) rectangle, solid fill / border, shadows off
+  box      → (rounded) rectangle, solid or gradient fill / border, shadows off
   text     → textbox with styled runs; px → pt at 0.5 (540pt slide / 1080px canvas)
   raster   → the element screenshot placed as a picture
 
@@ -103,7 +103,23 @@ def add_box(slide, node):
             sp.adjustments[0] = frac
         except Exception:
             pass
-    if node.get('fill'):
+    if node.get('gradient'):
+        # Brand-ramp badge/dot/bar: a fully-opaque element whose background-image was
+        # exactly one simple linear-gradient (extract_ir.py's elGrad) — same native
+        # gradFill path as the slide background / gradient-text runs, not a picture.
+        grad = node['gradient']
+        sp.fill.solid()  # creates the fill element in schema position, then replaced
+        solid = sp._element.spPr.find(qn('a:solidFill'))
+        stops = ''.join(
+            f'<a:gs pos="{int(round(s["pos"] * 1000))}"><a:srgbClr val="{s["color"].lstrip("#")}"/></a:gs>'
+            for s in grad['stops'])
+        # CSS Ndeg (0=up, cw) -> DrawingML (0=right, cw, 1/60000 deg): (N-90)%360
+        ang = int(round(((grad['angle'] - 90) % 360) * 60000))
+        gfill = parse_xml(
+            f'<a:gradFill xmlns:a="{A_NS}" rotWithShape="1"><a:gsLst>{stops}</a:gsLst>'
+            f'<a:lin ang="{ang}" scaled="1"/></a:gradFill>')
+        solid.getparent().replace(solid, gfill)
+    elif node.get('fill'):
         sp.fill.solid()
         # semi-transparent fills are pre-composited over white — a v1 approximation
         # (true per-shape alpha needs raw oxml; not worth it for the rare cases)
@@ -175,7 +191,7 @@ def add_text(slide, node):
             rn.font.italic = bool(st.get('italic'))
             rn.font.color.rgb = rgb(st['color'])
             if st.get('accent'):
-                _set_run_brand_gradient(rn)
+                _set_run_brand_gradient(rn, st.get('accentGradient'))
             if st.get('spacing'):
                 # letter-spacing: a:rPr spc is in 1/100 pt
                 rn.font._rPr.set('spc', str(int(round(st['spacing'] * PT_PER_PX * 100))))
@@ -199,18 +215,24 @@ def _parse_css_gradient(css):
     return float(m.group(1)), stops
 
 
-def _set_run_brand_gradient(rn):
+def _set_run_brand_gradient(rn, css_override=None):
     """Gradient-text runs (background-clip:text in HTML) get a REAL per-run gradient
-    fill — read from the active pack's own 'brand' gradient, never hardcoded — instead
-    of the earlier flat-blue approximation. PowerPoint renders run-level gradFill
-    natively. The gradient spans each run's own box (HTML spans the whole element) —
-    a close approximation for accent phrases."""
+    fill — read from the DECK'S OWN computed background-image where the IR carried one
+    (css_override — respects a deck's !important brand-ramp override, e.g. dropping
+    violet), falling back to the active pack's generic 'brand' gradient only when the
+    IR has no per-run value (older IR, or an unparseable override). Never hardcoded.
+    PowerPoint renders run-level gradFill natively. The gradient spans each run's own
+    box (HTML spans the whole element) — a close approximation for accent phrases."""
     rPr = rn.font._rPr
     solid = rPr.find(qn('a:solidFill'))
     if solid is None:
         return
-    css = _DS.gradients().get('brand')
+    css = css_override or _DS.gradients().get('brand')
     parsed = _parse_css_gradient(css) if css else None
+    if parsed is None and css_override:
+        # deck override didn't parse (e.g. layered/radial) — fall back to the pack's own
+        css = _DS.gradients().get('brand')
+        parsed = _parse_css_gradient(css) if css else None
     if parsed is None:
         return  # pack has no usable 'brand' gradient — leave the flat colour already set
     angle, stops = parsed

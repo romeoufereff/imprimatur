@@ -94,7 +94,9 @@ def ir_to_html(ir):
         pos = f'position:absolute;left:{r["x"]}px;top:{r["y"]}px;width:{r["w"]}px;height:{r["h"]}px;'
         if n['kind'] == 'box':
             css = pos + 'box-sizing:border-box;'
-            if n.get('fill'):
+            if n.get('gradientCss'):
+                css += f'background:{n["gradientCss"]};'
+            elif n.get('fill'):
                 a = n.get('fillAlpha', 1)
                 if a < 1:  # builder pre-composites over white
                     c = n['fill'].lstrip('#')
@@ -142,11 +144,13 @@ def ir_to_html(ir):
                     s = (f"font-family:'{_PREVIEW_FONT}';font-weight:{st['weight']};"
                          f"font-size:{st['size']}px;color:{st['color']};")
                     if st.get('accent'):
-                        # The builder writes a real per-run brand-gradient fill, so the
-                        # preview has to use the SAME gradient or the MAE reports drift that
-                        # is really just this file disagreeing with the pack. Read it from
-                        # svg.brandGradientStops rather than restating it.
-                        s += (f'background:{_BRAND_GRADIENT_CSS};'
+                        # The builder writes a real per-run brand-gradient fill (the
+                        # deck's own accentGradient when the IR carries one, else the
+                        # pack default), so the preview has to use the SAME source or
+                        # the MAE reports drift that is really just this file
+                        # disagreeing with the pack.
+                        grad_css = st.get('accentGradient') or _BRAND_GRADIENT_CSS
+                        s += (f'background:{grad_css};'
                               '-webkit-background-clip:text;background-clip:text;color:transparent;')
                     if st.get('italic'):
                         s += 'font-style:italic;'
