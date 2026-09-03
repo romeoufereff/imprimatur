@@ -290,12 +290,22 @@ WALK_JS = r"""
 
     // Raster cases — screenshot, don't descend. SVGs additionally get serialized so the
     // builder can embed them as native vector (svgBlip) with the PNG as fallback.
-    if (tag === 'canvas' || tag === 'img' ||
-        (!clipText && !elGrad && cs.backgroundImage && cs.backgroundImage !== 'none') ||
-        (tag === 'svg')) {
+    const isBgImageRaster = !clipText && !elGrad && cs.backgroundImage && cs.backgroundImage !== 'none';
+    if (tag === 'canvas' || tag === 'img' || isBgImageRaster || tag === 'svg') {
       el.setAttribute('data-ir-raster', String(rasterSeq));
+      // A background-image div (pattern/photo/layered gradient) that ALSO holds real
+      // descendant content — text, a gradient pill, a card — silently bakes that content
+      // into the screenshot instead of extracting it as native shapes, since walk() never
+      // descends into a raster node. Flag it here so the trap is caught during extraction
+      // rather than someone noticing flattened pictures in PowerPoint later (real bug:
+      // Sklum 07-parallel-lanes.html — gradient pill badges lost inside a grid-line-pattern
+      // parent div). See pptx-export SKILL.md, "Authoring trap: rasterized parents swallow
+      // children".
+      const swallowedText = isBgImageRaster ? (el.textContent || '').trim() : '';
       out.push({ kind: 'raster', id: rasterSeq++, rect: r, isSvg: tag === 'svg',
-                 tag, cls: (el.getAttribute('class') || '').slice(0, 60) });
+                 tag, cls: (el.getAttribute('class') || '').slice(0, 60),
+                 bgSwallowsContent: isBgImageRaster && swallowedText.length > 0,
+                 swallowedText: swallowedText.slice(0, 80) });
       return;
     }
 
@@ -485,6 +495,17 @@ def extract(page, html_path, assets_dir, name, native_charts=False):
     ir = page.evaluate(WALK_JS.replace('__DS_ACCENT__', _ACCENT).replace('__DS_INK__', _INK))
     if 'error' in ir:
         raise RuntimeError(f"{html_path}: {ir['error']}")
+
+    for node in ir['nodes']:
+        if node.get('bgSwallowsContent'):
+            preview = node.get('swallowedText', '')
+            print(f"  warn: <{node['tag']}> class=\"{node['cls']}\" has a background-image "
+                  f"AND descendant text (\"{preview}\") — that content will be baked into the "
+                  f"raster screenshot instead of extracted as native shapes. Move the "
+                  f"background pattern to a sibling overlay div (position:absolute, "
+                  f"pointer-events:none) instead of nesting content inside it — see "
+                  f"pptx-export SKILL.md, \"Authoring trap: rasterized parents swallow "
+                  f"children\".")
 
     # Opt-in native charts: scrape live ECharts instances; a raster node whose rect sits
     # inside a chart container becomes a 'chart' node (real editable PPTX chart). On any

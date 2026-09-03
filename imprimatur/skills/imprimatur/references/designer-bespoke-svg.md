@@ -66,6 +66,28 @@ the host template's content area per its handoff section.
 7. **Log it** — `log_slide.py … --visual bespoke --focal "<metaphor in ≤ 12 words>"`; auditors
    judge the SVG against the pack's SVG rules, not against template mapping.
 
+## Never nest convertible content inside a decorative-background div
+
+If the deck also gets exported to PPTX (`pptx-export`), any HTML element that needs a
+`background-image` (a pattern, a photo, a layered/radial gradient — the kind of decoration
+a bespoke lanes/pipeline/flow layout tends to reach for as a grid-line or texture backdrop)
+gets rasterized whole and **its children are baked into that screenshot instead of being
+extracted as their own shapes**. A gradient pill badge, a text label, a card — anything with
+real content — placed *inside* such a div silently becomes part of the picture, even though
+it would otherwise export as an editable shape or textbox.
+
+This shipped a real bug: a Sklum deck's parallel-lanes slide put gradient "pill" badges
+(their own text included) inside a div whose background-image was a grid-line pattern; the
+pills vanished into that raster and only turned up as a flattened picture in PowerPoint,
+nothing looked wrong in the browser or the review harness.
+
+**Rule: a decorative background pattern is always a sibling overlay
+(`position:absolute; inset:0; pointer-events:none;`), never the parent of text, badges, or
+cards.** Put the pattern in its own div stacked behind (or above, with `pointer-events:none`)
+the real content — never wrap the content in it. `extract_ir.py` prints a `warn:` line for
+any element it catches with a background-image AND non-trivial descendant text — treat that
+like a svg2shapes fallback warning and restructure before calling the slide done.
+
 ## Raster images (screenshots, photos)
 
 Embed as `data:image/png;base64,…` URIs — never file-path references. The review harness

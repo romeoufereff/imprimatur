@@ -54,6 +54,32 @@ python3 "{PLUGIN}/skills/pptx-export/scripts/html2pptx.py" \
 | Gradient text (`background-clip:text`) | Editable text with a **real per-run brand-gradient fill** (the pack's `svg.brandGradientStops`); the gradient spans each run's own box rather than the whole element — close for accent phrases. Checked BEFORE the raster branch; never a picture |
 | Semi-transparent solid fills | Pre-composited over white (approximation) |
 
+## Authoring trap: rasterized parents swallow children
+
+`extract_ir.py`'s DOM walk screenshots any element that needs a background-image (a
+pattern, photo, canvas, layered/radial gradient) and **does not descend into its
+children** — they get baked into that one raster PNG instead of being extracted as their
+own shapes. If a deck-designer-authored slide puts otherwise-convertible content (a text
+node, a gradient pill/badge, a card) **inside** a div whose own background-image is a
+decorative pattern, that content silently disappears into the picture. It still looks
+fine in the browser and in the review harness — the only way to notice is opening the
+PPTX and finding a flattened picture where an editable badge should be.
+
+Real incident: a Sklum deck (`07-parallel-lanes.html`) nested gradient "pill" badges
+(with their own text) inside a div whose background-image was a grid-line pattern; the
+pills silently became part of that raster screenshot even though they were themselves
+perfectly convertible. Fixed by moving the grid-line pattern into a separate **sibling**
+overlay div instead of being the pills' parent.
+
+**Rule for anyone authoring slide HTML (deck-designer included): a decorative background
+that needs `background-image` must always be a sibling overlay
+(`position:absolute; inset:0; pointer-events:none;` behind or above the content in
+z-order, never a wrapper), never the parent of text, badges, or cards.** `extract_ir.py`
+now detects this shape at extraction time — an element with a background-image AND
+non-trivial descendant text — and prints `warn: <tag> ... has a background-image AND
+descendant text ...` for each occurrence. Treat that warning like the svg2shapes fallback
+warnings: read the IR JSON for the flagged node, restructure the HTML, and re-extract.
+
 ## Limitations (tell the user these up front)
 
 1. **Machines without the pack's font family substitute fonts** — the pptx names per-weight
