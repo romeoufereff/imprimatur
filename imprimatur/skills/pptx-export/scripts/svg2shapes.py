@@ -128,20 +128,55 @@ def mat_scale_avg(m):
 _NUM = re.compile(r'[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?')
 
 
+_CMD_CHARS = set('MmLlHhVvCcSsQqTtAaZz')
+
+
 def parse_path(d):
     """→ list of subpaths: {'start':(x,y), 'closed':bool, 'segs':[('l',x,y)|('c',x1,y1,x2,y2,x,y)]}
-    All commands normalized to absolute lines/cubics; arcs → cubic approximation."""
-    tokens = re.findall(r'[MmLlHhVvCcSsQqTtAaZz]|' + _NUM.pattern, d)
-    i, n = 0, len(tokens)
+    All commands normalized to absolute lines/cubics; arcs → cubic approximation.
+
+    Cursor-based (not a flat pre-tokenized list): the arc command's large-arc-flag and
+    sweep-flag are single '0'/'1' digits that real-world SVG (icon libraries especially)
+    routinely writes with NO separator between them, or butted against the next number
+    ("a.412.412 0 00-.114-.266" — the "00" is two flags, not the number 0 followed by a
+    dropped flag). A flat regex tokenizer can't tell a 2-digit flag pair from one 2-digit
+    number without knowing it's mid-arc-command, and greedily eats both digits as one
+    token — which then desyncs every argument after it and crashes (or silently
+    misreads) the rest of the path. Reading flags as exactly one character, addressed by
+    a string cursor instead of a token index, removes the ambiguity at the source."""
+    n = len(d)
+    pos = 0
     subpaths, segs, start = [], [], None
     cx = cy = 0.0
     last_cmd = None
     last_ctrl = None  # for S/T reflection
 
+    def skip_seps():
+        nonlocal pos
+        while pos < n and (d[pos].isspace() or d[pos] == ','):
+            pos += 1
+
     def num():
-        nonlocal i
-        v = float(tokens[i]); i += 1
+        nonlocal pos
+        skip_seps()
+        m = _NUM.match(d, pos)
+        if not m:
+            raise Unconvertible(f'expected number at path offset {pos}')
+        pos = m.end()
+        return float(m.group(0))
+
+    def flag():
+        nonlocal pos
+        skip_seps()
+        if pos >= n or d[pos] not in '01':
+            raise Unconvertible(f'expected arc flag (0/1) at path offset {pos}')
+        v = int(d[pos]); pos += 1
         return v
+
+    def peek_cmd():
+        nonlocal pos
+        skip_seps()
+        return d[pos] if pos < n and d[pos] in _CMD_CHARS else None
 
     def flush(closed):
         nonlocal segs, start
@@ -149,12 +184,17 @@ def parse_path(d):
             subpaths.append({'start': start, 'closed': closed, 'segs': segs})
         segs = []
 
-    while i < n:
-        t = tokens[i]
-        if re.match(r'[A-Za-z]', t):
-            cmd = t; i += 1
+    while True:
+        skip_seps()
+        if pos >= n:
+            break
+        c = peek_cmd()
+        if c is not None:
+            cmd = c; pos += 1
         else:
             cmd = last_cmd  # implicit repeat
+            if cmd is None:
+                raise Unconvertible(f'path does not start with a command at offset {pos}')
             if cmd in 'Mm':
                 cmd = 'L' if cmd == 'M' else 'l'
         rel = cmd.islower()
@@ -225,7 +265,8 @@ def parse_path(d):
             segs.append(('c', c1[0], c1[1], c2[0], c2[1], x, y))
             last_ctrl = (qx, qy); cx, cy = x, y
         elif C == 'A':
-            rx, ry, rot, laf, swf = num(), num(), num(), num(), num()
+            rx, ry, rot = num(), num(), num()
+            laf, swf = flag(), flag()
             x, y = num(), num()
             if rel:
                 x, y = cx + x, cy + y
