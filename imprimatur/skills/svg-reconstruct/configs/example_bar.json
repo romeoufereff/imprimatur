@@ -1,0 +1,97 @@
+{
+  "type": "bar",
+  "width": 900,
+  "height": 560,
+  "orientation": "vertical",
+  "plot": {
+    "x": 80,
+    "y": 40,
+    "w": 780,
+    "h": 440
+  },
+  "y_axis": {
+    "min": 0,
+    "max": 100,
+    "ticks": 5,
+    "label": "Revenue"
+  },
+  "bars": [
+    {
+      "label": "Q1",
+      "value": 65,
+      "gradient_angle": 90,
+      "stops": [
+        [
+          "0%",
+          "role:primary-mid",
+          1
+        ],
+        [
+          "100%",
+          "role:primary-mid",
+          1
+        ]
+      ]
+    },
+    {
+      "label": "Q2",
+      "value": 72,
+      "gradient_angle": 90,
+      "stops": [
+        [
+          "0%",
+          "role:primary-mid",
+          1
+        ],
+        [
+          "100%",
+          "role:primary-mid",
+          1
+        ]
+      ]
+    },
+    {
+      "label": "Q3",
+      "value": 58,
+      "gradient_angle": 90,
+      "stops": [
+        [
+          "0%",
+          "role:primary-mid",
+          1
+        ],
+        [
+          "100%",
+          "role:primary-mid",
+          1
+        ]
+      ]
+    },
+    {
+      "label": "Q4",
+      "value": 88,
+      "gradient_angle": 90,
+      "stops": [
+        [
+          "0%",
+          "role:primary-mid",
+          1
+        ],
+        [
+          "100%",
+          "role:primary-mid",
+          1
+        ]
+      ]
+    }
+  ],
+  "bar_gap_ratio": 0.35,
+  "corner": 6,
+  "grid": true,
+  "value_labels": true,
+  "font": {
+    "family": "sans-serif",
+    "axis_size": 14,
+    "label_size": 16
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "skill_name": "imprimatur",
+  "version": "2.0",
+  "description": "Engine evals for the deck pipeline. These are deliberately PACK-FREE: they exercise narrative, design briefs and orchestration, and none of them assert a colour, a token name or a footer string. Anything that can only be judged against a particular brand — seeded brand-audit violations, the off-brand regression fixture — lives with the PACK that defines what off-brand means, under <pack>/evals/. That is the same engine/brand line the rest of the repository is built on: the pack owns the fixtures that prove the pack can defend itself, and it travels with them.",
+  "evals": [
+    {
+      "id": 1,
+      "tier": "stage",
+      "stage": "designer",
+      "name": "designer-two-column-sparse",
+      "prompt": "You are deck-designer inside the pipeline. The deck folder contains evals/stage-designer/deck-brief.md (copy it in). Execute the visual concept brief in evals/stage-designer/brief-01-two-column.md: generate the single slide as 08-risks.html plus your generation report.",
+      "files": [
+        "stage-designer/deck-brief.md",
+        "stage-designer/brief-01-two-column.md"
+      ],
+      "expected_output": "One self-contained slide HTML (03-two-column family) + generation report",
+      "assertions": [
+        "qa.py (validate + check_contrast + check_overflow) exits 0 on the produced slide",
+        "Generation report names the exact template file read (03-two-column.html or a variant)",
+        "Paired risk/mitigation rows use ONE shared CSS grid with explicit grid-row per pair (not two independent column stacks)",
+        "Density: atomic-item count ≤ 8 (sparse) and the report states count vs budget",
+        "Generation report names one focal point",
+        "Slide title is a complete assertion, not a label"
+      ]
+    },
+    {
+      "id": 2,
+      "tier": "stage",
+      "stage": "designer",
+      "name": "designer-data-chart-dense",
+      "prompt": "You are deck-designer inside the pipeline. The deck folder contains evals/stage-designer/deck-brief.md (copy it in; this eval overrides Density to dense). Execute evals/stage-designer/brief-02-chart.md: generate the single slide as 06-ingestion.html plus your generation report.",
+      "files": [
+        "stage-designer/deck-brief.md",
+        "stage-designer/brief-02-chart.md"
+      ],
+      "expected_output": "One slide with an ECharts bar chart (SVG renderer) + KPI panel + generation report",
+      "assertions": [
+        "qa.py exits 0 on the produced slide",
+        "ECharts config copied from charts/ reference (renderer: 'svg' present; only data arrays and labels changed)",
+        "Chart title states the INSIGHT (sub-linear cost), not the topic ('Monthly ingestion')",
+        "KPI side panel present (bg-ds-light-blue family cards)",
+        "Density: 12 bars + 3 KPI cards ≤ 14 (dense) and the report states count vs budget"
+      ]
+    },
+    {
+      "id": 3,
+      "tier": "stage",
+      "stage": "designer",
+      "name": "designer-bespoke-rings-delegation",
+      "prompt": "You are deck-designer inside the pipeline. The deck folder contains evals/stage-designer/deck-brief.md (copy it in). Execute evals/stage-designer/brief-03-bespoke-svg.md: generate the single slide as 04-governance.html plus your generation report.",
+      "files": [
+        "stage-designer/deck-brief.md",
+        "stage-designer/brief-03-bespoke-svg.md"
+      ],
+      "expected_output": "One slide whose right two-thirds is a bespoke concentric-rings SVG",
+      "assertions": [
+        "The ring geometry is delegated to svg-reconstruct (donut/hub-spoke family recipe), NOT hand-authored arc path strings — the report says so",
+        "qa.py exits 0 on the produced slide",
+        "The bespoke SVG is the focal point; no competing card grid beside it",
+        "SVG follows design-system rules: defs starter-kit ids, primary labels ≥20px bold, sub-labels ≥16px",
+        "Density: ≤ 8 atomic items (labeled SVG nodes count) and the report states count vs budget",
+        "WebKit render (deck-review/scripts/render.py) shows no missing strokes (known-issues §5)"
+      ]
+    },
+    {
+      "id": 4,
+      "tier": "stage",
+      "stage": "designer",
+      "name": "designer-big-stat-breather",
+      "prompt": "You are deck-designer inside the pipeline. The deck folder contains evals/stage-designer/deck-brief.md (copy it in). Execute evals/stage-designer/brief-04-breather.md: generate the single slide as 07-roi.html plus your generation report.",
+      "files": [
+        "stage-designer/deck-brief.md",
+        "stage-designer/brief-04-breather.md"
+      ],
+      "expected_output": "One big-stat breather slide (36-big-stat family): hero numeral + assertion + support strip",
+      "assertions": [
+        "qa.py exits 0 on the produced slide",
+        "Template read is 36-big-stat.html (report names it)",
+        "Hero numeral uses the display scale (≥120px, weight 300 or the ds-stat token role)",
+        "Density: 4 atomic items — nothing added beyond the brief",
+        "Gradient text, if used, covers ≤3 accent words"
+      ]
+    },
+    {
+      "id": 6,
+      "tier": "stage",
+      "stage": "narrative",
+      "name": "narrative-briefs-complete",
+      "prompt": "You are deck-narrative inside the pipeline. Input: evals/stage-narrative/skeleton.json (locked brief + approved 9-slide skeleton; deck-brief at evals/stage-designer/deck-brief.md). Produce the narrative outline and one visual concept brief per skeleton slide in the SLIDE BRIEF format.",
+      "files": [
+        "stage-narrative/skeleton.json",
+        "stage-designer/deck-brief.md"
+      ],
+      "expected_output": "9 complete SLIDE BRIEFs + outline with flow notes",
+      "assertions": [
+        "Exactly 9 briefs, one per skeleton slide, in order",
+        "Every brief has ALL fields: Message, Structure, Visual, Key data, Emphasis, Audience, Density",
+        "Visual-rhythm floor met: ≥3 briefs with Visual ≠ none, including ≥1 bespoke (variance high, 9 slides)",
+        "No two adjacent briefs resolve to the same layout shape",
+        "Every Density line is sized to the sparse budget (≤8 items)",
+        "Every Message is a complete assertion (no label titles)",
+        "In-pipeline mode respected: no questions addressed directly to the user"
+      ]
+    },
+    {
+      "id": 10,
+      "tier": "stage",
+      "stage": "pptx-export",
+      "name": "pptx-export-fidelity",
+      "prompt": "Run pptx-export on an assembled deck that contains at least: one gradient-background cover, one slide with a bespoke SVG diagram, one slide with gradient-accent title words, and one mixed-size card list. Then run the verification checklist from pptx-export/SKILL.md.",
+      "files": [],
+      "expected_output": "Deck.pptx + .pptx-ir/ (IR JSON, assets, preview diffs)",
+      "assertions": [
+        "ir_preview.py exits 0: every slide content-MAE < 60 (blurred, ink-masked metric)",
+        "Text pt sizes in the pptx equal IR px * 0.5 exactly (spot-check one title run)",
+        "Mixed containers keep their direct text (no vanished table columns): every IR text total matches the page's innerText coverage",
+        "Zero raster nodes for gradient-text elements (grep IR: no raster node whose source element used background-clip:text)",
+        "Diagram SVGs are native grouped shapes: grpSp count == convertible-SVG count, custGeom freeforms present, zero .svg parts left unless a fallback printed its reason",
+        "svg2shapes.py --verify passes (content-MAE < 60) on every converted SVG asset",
+        "Gradient-background slides carry native gradFill (slide XML) with editable text shapes, not a full-slide picture",
+        "Every text run uses a per-weight font name (no bare 'System Sans' + bold flag)",
+        "All textboxes have wrap='none' and explicit paragraphs matching the browser's line breaks",
+        "With --native-charts: ECharts slides contain a real chart shape whose series data matches the page's chart.getOption()"
+      ]
+    },
+    {
+      "id": 7,
+      "tier": "acceptance",
+      "name": "pharma-data-pitch",
+      "description": "Executive pitch deck for pharma data modernization (Snowflake migration)",
+      "prompt": "I need to pitch a data modernization engagement to PharmaCore Inc., a large pharma company currently using legacy SAP BW. We're proposing a migration to Snowflake + Databricks for real-time analytics. Audience is mostly executives (C-suite + steering committee). We want a 10-slide pitch that covers: current pain, proposed vision, architecture, risk mitigation, investment, timeline, and call-to-action. Make it strong — this is a €2M engagement.",
+      "expected_output": "A complete on-brand deck (HTML slides + index.html + PDF) with 10 slides covering the pitch narrative. All slides pass brand compliance and design quality audits; review gate cleared before PDF.",
+      "acceptance_criteria": [
+        "All 10 slides generated successfully",
+        "Brand audit passes on all slides (no contrast violations, tokens used correctly)",
+        "Design crit approves all slides AND the deck-level pass (variance dial, no template monotony)",
+        "Review gate: zero open annotations + explicit acceptance before pdf-export",
+        "PDF exports cleanly (element screenshots; page count == slide_count)",
+        "Deck tells cohesive story (Pyramid Principle: conclusion first, then support)"
+      ],
+      "complexity": "high",
+      "estimated_slides": 10,
+      "cost_tracking": {
+        "expected_designer_spawns": 2,
+        "note": "10 slides = two parallel chunks of 5 (chunks are always ≤ 5 slides). Record per-agent turns, ctx peak and minutes as the small-deck baseline for comparison against eval 11's larger run."
+      },
+      "files": []
+    },
+    {
+      "id": 8,
+      "tier": "acceptance",
+      "name": "quarterly-status-update",
+      "description": "Quarterly status update for internal the brand data platform team",
+      "prompt": "We need a quarterly status update for Q2 2026 on our internal data platform modernization project. Audience is mixed: data engineers, platform architects, and a few business stakeholders. Target 7 slides. Must include: status summary (on track), what was delivered this quarter (3 key features), what's in progress, risks (one major: data governance complexity), and next quarter roadmap. Tone should be professional but informal — this is internal.",
+      "expected_output": "A compact 7-slide internal deck; fast-track intake acceptable (internal, low variance); all audits pass; PDF ready to email.",
+      "acceptance_criteria": [
+        "All 7 slides generated successfully",
+        "Status updates are assertive (not labels): 'Q2 delivery on track: 87% sprint completion' not just 'Status Update'",
+        "Charts/metrics use insight titles ('Data ingestion grew 3x' not 'Monthly Ingestion Rates')",
+        "Brand and design audits pass",
+        "PDF exports and is readable on screen and in print"
+      ],
+      "complexity": "medium",
+      "estimated_slides": 7,
+      "cost_tracking": {
+        "expected_designer_spawns": 2,
+        "note": "Two parallel chunks (≤ 5 slides each)."
+      },
+      "files": []
+    },
+    {
+      "id": 9,
+      "tier": "acceptance",
+      "name": "capability-brief",
+      "description": "Capability brief for the brand's new AI/ML platform offering",
+      "prompt": "the brand is launching a new AI/ML platform service. We need a capability brief to market this to clients in pharma and manufacturing. Executive audience. 8 slides. Must position our 3 core capabilities: model development, MLOps automation, and business intelligence integration. Include competitive positioning, methodology, customer success stories (2), and call-to-action for a discovery call. This is a presales deck — make it compelling.",
+      "expected_output": "An 8-slide capability brief; all slides assertive and principle-driven; passes all audits and the review gate.",
+      "acceptance_criteria": [
+        "All 8 slides completed",
+        "Capability positioning is clear (understand what the brand does in AI/ML, why it's different)",
+        "Success stories include metrics (% efficiency gain, timeline to value, cost savings)",
+        "Design hierarchy supports presales narrative (confidence-building, not overwhelming)",
+        "Brand compliance and design quality both pass; review gate cleared",
+        "PDF is polished and ready for client distribution"
+      ],
+      "complexity": "medium-high",
+      "estimated_slides": 8,
+      "cost_tracking": {
+        "expected_designer_spawns": 2,
+        "note": "Two parallel chunks (≤ 5 slides each)."
+      },
+      "files": []
+    },
+    {
+      "id": 11,
+      "tier": "acceptance",
+      "name": "large-deck-chunked-designer",
+      "description": "20-slide Executive Readout — the acceptance eval that exercises §4 at scale: four parallel ≤ 5-slide chunks against a pre-locked design plan, where cross-chunk consistency comes from design-decisions.md + plan_check.py rather than agent memory",
+      "prompt": "We need an Executive Readout for a data platform modernization program at a large retail client (fictional: 'Norstrand Retail'). Audience is C-suite plus a steering committee. 20 slides covering: situation, proposed solution, architecture, a phased rollout across 4 workstreams, risk mitigation, investment breakdown, a 12-month timeline, governance model, and closing with decisions and an ask. High variance — this needs real visual rhythm across 20 slides, not a wall of cards.",
+      "expected_output": "A complete 20-slide on-brand deck. Phase 4 runs as four designer-agent spawns (≤ 5 slides each) launched in the same turn with run_in_background: true, after the orchestrator's design plan passed plan_check.py.",
+      "acceptance_criteria": [
+        "All 20 slides generated successfully",
+        "design-decisions.md shows entries spanning the full deck, not just the last chunk — confirms cross-chunk continuity held",
+        "Accent color and template-tally decisions are consistent from slide 1 through slide 20 (spot-check slide 2 against slide 18) — the exact defect the cap is meant to prevent if design-decisions.md goes stale between chunks",
+        "Brand audit passes on all slides",
+        "Design crit approves all slides AND the deck-level pass (variance dial, no template monotony) across the full 20 slides",
+        "Review gate: zero open annotations + explicit acceptance before pdf-export",
+        "PDF exports cleanly (page count == slide_count)"
+      ],
+      "complexity": "high",
+      "estimated_slides": 20,
+      "cost_tracking": {
+        "expected_designer_spawns": 4,
+        "note": "ceil(20/5)=4 chunks, all in parallel. Record with scripts/telemetry/session_stats.py: per chunk agent — turns per slide (target ≤ 6), ctx peak (target ≤ 150 K), minutes, tool results > 100 KB (target 0), hook_visible (target true); phase-4 wall-clock (should be roughly that of the slowest chunk, not the sum); any stop-gate block and how many re-runs it took. Compare per-slide cost against eval 7 (10 slides, 2 chunks) — it should stay flat as deck size grows."
+      },
+      "files": []
+    }
+  ],
+  "test_instructions": {
+    "stage_evals": "Run each stage eval in an isolated working folder (copy the listed files in). Grade with scripts where possible: qa.py for designer outputs, seeded-violations.json recall/precision for the audit eval, field-presence checks for narrative briefs. These are the evals to iterate on after any change to a sub-skill.",
+    "acceptance_evals": "Invoke the orchestrator with the prompt as the user request and walk the full 10-phase pipeline (intake → structure → narrative → design → audits incl. deck-level crit → assembly → render → review gate → pdf-export). Run before declaring a pipeline-wide change done — not for every iteration.",
+    "cost_tracking": "Every acceptance eval carries a `cost_tracking` field — record its metrics (total_tokens, total_turns, designer_agent_spawns, crashes/retries) for every acceptance run, not just eval 11. Performance here has historically been judged on output quality alone, with no signal on the cost curve as slide count grows — that blind spot is exactly what let a real production deck's per-turn cost compound unnoticed across 23 slides until it started crashing sessions. A run's `expected_designer_spawns` is a scripted check (count the Agent-tool spawns to the deck-designer subagent_type during phase 4 and compare); the token/turn totals are not scriptable from outside an agent's own transcript, so record them by hand from the session's usage summary after each acceptance run and keep a running log (e.g. a small table alongside this file) so a regression in the per-slide cost curve shows up across runs instead of silently drifting.",
+    "success_definition": "Stage tier: all scripted assertions pass. Acceptance tier: all acceptance criteria met, designer never self-judges, review gate enforced, and cost_tracking metrics recorded (expected_designer_spawns verified, tokens/turns logged)."
+  },
+  "pack_evals": {
+    "note": "Run these against whichever pack is active. A pack ships its own fixtures because the expected violations depend on its palette, type scale and footer.",
+    "location": "<pack>/evals/",
+    "harness": "forge/scripts/verify_pack.py --pack <pack>  (templates must pass, off-brand-fixture must fail)",
+    "moved_from_engine": [
+      "brand-audit-seeded-violations"
+    ]
+  }
+}

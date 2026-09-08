@@ -1,0 +1,105 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/block_batch_slide_write.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/export_gate.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/block_large_template_read.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/orchestrator_guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/orchestrator_guard.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Write(**/*.html)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/slide_write_check.py\""
+          },
+          {
+            "type": "command",
+            "if": "Edit(**/*.html)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/slide_write_check.py\""
+          },
+          {
+            "type": "command",
+            "if": "Write(**/deck-metadata.json)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/deck_consistency.py\""
+          },
+          {
+            "type": "command",
+            "if": "Edit(**/deck-metadata.json)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/deck_consistency.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(*batch_convert.py*)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/export_notify.py\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(*html2pptx.py*)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/export_notify.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "^imprimatur:",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/agent_header.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^imprimatur:deck-designer$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/designer_stop_gate.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

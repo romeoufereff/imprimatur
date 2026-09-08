@@ -1,0 +1,26 @@
+{
+  "type": "funnel",
+  "width": 700,
+  "height": 560,
+  "center_x": 350,
+  "top": 40,
+  "band_height": 80,
+  "gap": 8,
+  "max_width": 540,
+  "min_width": 160,
+  "stages": [
+    {
+      "label": "Visitors",
+      "value": 10000,
+      "icon": "users"
+    },
+    {
+      "label": "Leads",
+      "value": 4200
+    },
+    {
+      "label": "Customers",
+      "value": 1100
+    }
+  ]
+}

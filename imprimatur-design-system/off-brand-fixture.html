@@ -1,0 +1,50 @@
+<!-- OFF-BRAND REGRESSION FIXTURE — this file is SUPPOSED to fail validation.
+     A pack that cannot fail this file cannot defend itself, and every deck built on it
+     will drift. Each block below trips a specific rule; the comment names which.
+     If you turn a rule off in design-system.json, delete its block here too so the
+     fixture keeps failing for real reasons rather than stale ones. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Off-brand fixture</title>
+<!-- no inline tailwind config      -> requireInlineTailwindConfig -->
+<!-- no canonical scaler script     -> requireCanonicalScaler -->
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+<!-- no data-template attribute     -> requireDataTemplate -->
+<!-- no #slide canvas wrapper       -> requireSlideCanvas -->
+<div class="p-10" style="font-family: Inter, system-ui, sans-serif;">
+  <!-- off-brand font family        -> banOffBrandFontFamilies / requireFontMarker -->
+
+  <h1 class="text-slate-800 font-semibold" style="font-size: 40px;">
+    <!-- tailwind default palette   -> banTailwindDefaultPalette -->
+    <!-- weight 600 off the scale   -> banOffScaleFontWeights -->
+    Quarterly business review 🚀
+    <!-- emoji                      -> banEmoji -->
+  </h1>
+
+  <p style="font-size: 11px; color: #D97757;">
+    <!-- below the font-size floor  -> enforceFontSizeFloor -->
+    <!-- hex outside the census     -> enforcePaletteCensus -->
+    Body copy set far below the readable floor in a colour the brand does not own.
+  </p>
+
+  <div class="shadow-lg rounded p-6" style="background: #F5F1E8;">
+    <!-- drop shadow on a box       -> banStructuralShadows -->
+    <div style="border-left: 6px solid #D97757; padding-left: 12px;">
+      <!-- left accent bar          -> banLeftAccentBars -->
+      A card with a shadow and a left accent bar.
+    </div>
+  </div>
+
+  <div style="background: linear-gradient(90deg, #D97757 0%, #F5F1E8 100%);
+              height: 80px; margin-top: 24px;">
+    <!-- non-canonical gradient     -> enforceGradientCanon -->
+  </div>
+
+  <!-- no footer text               -> requireFooterText -->
+</div>
+</body>
+</html>

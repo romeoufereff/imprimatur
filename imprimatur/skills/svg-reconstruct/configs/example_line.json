@@ -1,0 +1,41 @@
+{
+  "type": "line",
+  "width": 900,
+  "height": 520,
+  "plot": {
+    "x": 70,
+    "y": 40,
+    "w": 800,
+    "h": 400
+  },
+  "x_axis": {
+    "labels": [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr"
+    ]
+  },
+  "y_axis": {
+    "min": 0,
+    "max": 100,
+    "ticks": 5
+  },
+  "smooth": true,
+  "series": [
+    {
+      "name": "2026",
+      "color": "role:primary-mid",
+      "width": 3,
+      "points": [
+        10,
+        45,
+        30,
+        80
+      ],
+      "dots": true,
+      "area": false
+    }
+  ],
+  "grid": true
+}

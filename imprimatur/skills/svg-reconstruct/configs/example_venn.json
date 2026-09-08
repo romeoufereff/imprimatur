@@ -1,0 +1,53 @@
+{
+  "type": "venn",
+  "width": 700,
+  "height": 560,
+  "background": "#FFFFFF",
+  "circles": [
+    {
+      "cx": 285,
+      "cy": 260,
+      "r": 175,
+      "color": "role:primary-mid",
+      "opacity": 0.55,
+      "label": "Design",
+      "label_x": 200,
+      "label_y": 200,
+      "label_color": "#FFFFFF",
+      "label_size": 22
+    },
+    {
+      "cx": 415,
+      "cy": 260,
+      "r": 175,
+      "color": "role:accent",
+      "opacity": 0.55,
+      "label": "Engineering",
+      "label_x": 505,
+      "label_y": 200,
+      "label_color": "#FFFFFF",
+      "label_size": 22
+    },
+    {
+      "cx": 350,
+      "cy": 375,
+      "r": 175,
+      "color": "role:primary",
+      "opacity": 0.5,
+      "label": "Business",
+      "label_x": 350,
+      "label_y": 490,
+      "label_color": "#FFFFFF",
+      "label_size": 22
+    }
+  ],
+  "overlaps": [
+    {
+      "x": 350,
+      "y": 300,
+      "label": "Product",
+      "size": 16,
+      "color": "#FFFFFF"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "type": "stacked_bar",
+  "width": 900,
+  "height": 540,
+  "background": "#FFFFFF",
+  "plot": {
+    "x": 70,
+    "y": 60,
+    "w": 800,
+    "h": 410
+  },
+  "categories": [
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4"
+  ],
+  "max": null,
+  "gap_ratio": 0.4,
+  "corner": 4,
+  "segments": [
+    {
+      "name": "Product",
+      "color": "role:primary-mid",
+      "values": [
+        30,
+        40,
+        35,
+        50
+      ]
+    },
+    {
+      "name": "Services",
+      "color": "role:accent",
+      "values": [
+        20,
+        25,
+        30,
+        28
+      ]
+    },
+    {
+      "name": "Support",
+      "color": "role:primary",
+      "values": [
+        10,
+        15,
+        12,
+        18
+      ]
+    }
+  ]
+}

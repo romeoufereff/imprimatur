@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{PACK_NAME}} Slide</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+{{TAILWIND_CONFIG}}
+</script>
+
+<style>
+  html, body {
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #slide {
+    width:{{CANVAS_W}}px; height:{{CANVAS_H}}px; position:relative; overflow:hidden;
+    font-family:{{FONT_STACK}};
+    flex-shrink:0;
+  }
+  /* No background here on purpose — an ID selector beats any bg-{{P}}-* Tailwind
+     utility class by specificity, so a hardcoded value here would silently override
+     every template's own background choice (confirmed: it did, across every pack
+     forged before this fix). Every real template must set its own bg-{{P}}-* class
+     on #slide explicitly. */
+  /* transform-origin defaults to center — correct for flex centering on html/body */
+  .gradient-text {
+    background:{{BRAND_GRADIENT}};
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  }
+</style>
+</head>
+<body>
+
+<div id="slide" data-template="base" class="bg-white">
+
+  <!-- ── BODY CONTENT GOES HERE ───────────────────────── -->
+
+  <!-- ── END BODY ─────────────────────────────────────── -->
+
+  <!-- ── Footer chrome — DO NOT EDIT ───────────────────────── -->
+  <div class="absolute bottom-[24px] right-[80px] flex items-center gap-6
+              text-[{{FOOTER_SIZE_PX}}px] {{MUTED_CLASS}} {{FONT_CLASS}}">
+    <span>{{FOOTER_LABEL}}</span>
+    <span class="font-bold {{MUTED_CLASS}}" id="page-number">1</span>
+  </div>
+
+</div>
+
+<!-- ── Canvas scaler — keeps {{CANVAS_W}}×{{CANVAS_H}} at any viewport size ── -->
+<script>
+  (function(){ const s=document.getElementById('slide');
+    function fit(){
+      const r=Math.min(window.innerWidth/{{CANVAS_W}}, window.innerHeight/{{CANVAS_H}});
+      s.style.width='{{CANVAS_W}}px';
+      s.style.height='{{CANVAS_H}}px';
+      s.style.transformOrigin='center center';
+      s.style.transform='scale('+r+')';
+      document.documentElement.style.overflow='hidden';
+      document.body.style.overflow='hidden';
+    }
+    fit(); window.addEventListener('resize',fit); })();
+</script>
+
+</body>
+</html>

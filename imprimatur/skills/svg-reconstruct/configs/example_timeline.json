@@ -1,0 +1,36 @@
+{
+  "type": "timeline",
+  "width": 1100,
+  "height": 400,
+  "axis_y": 200,
+  "start_x": 80,
+  "end_x": 1020,
+  "line_color": "role:primary-mid",
+  "line_width": 4,
+  "events": [
+    {
+      "date": "2021",
+      "title": "Founded",
+      "desc": "Company started",
+      "side": "top",
+      "color": "role:primary-mid",
+      "icon": "flag"
+    },
+    {
+      "date": "2023",
+      "title": "Series A",
+      "desc": "Funding round",
+      "side": "bottom",
+      "color": "role:accent",
+      "icon": "trending-up"
+    },
+    {
+      "date": "2025",
+      "title": "Scale",
+      "desc": "Global expansion",
+      "side": "top",
+      "color": "role:deep",
+      "icon": "rocket"
+    }
+  ]
+}

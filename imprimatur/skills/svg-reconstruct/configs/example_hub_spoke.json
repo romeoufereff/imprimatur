@@ -1,0 +1,45 @@
+{
+  "type": "hub_spoke",
+  "width": 900,
+  "height": 900,
+  "background": "#FFFFFF",
+  "center": [
+    450,
+    450
+  ],
+  "spoke_radius": 300,
+  "spoke_node_radius": 64,
+  "rotation": 0,
+  "line_color": "#D0D0D0",
+  "hub": {
+    "label": "Platform",
+    "radius": 92,
+    "size": 24
+  },
+  "spokes": [
+    {
+      "label": "API",
+      "icon": "code"
+    },
+    {
+      "label": "Auth",
+      "icon": "lock"
+    },
+    {
+      "label": "Storage",
+      "icon": "database"
+    },
+    {
+      "label": "Billing",
+      "icon": "credit-card"
+    },
+    {
+      "label": "Analytics",
+      "icon": "bar-chart-3"
+    },
+    {
+      "label": "Notify",
+      "icon": "bell"
+    }
+  ]
+}

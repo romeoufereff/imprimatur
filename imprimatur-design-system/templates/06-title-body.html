@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ACME Deck System Slide</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'acme-primary': '#416180',
+        'acme-primary-mid': '#597ea3',
+        'acme-accent': '#749dc4',
+        'acme-deep': '#1d2d3d',
+        'acme-support-1': '#5d5d60',
+        'acme-support-2': '#98989b',
+        'acme-ink': '#1d1f20',
+        'acme-body': '#424244',
+        'acme-muted': '#5d5d60',
+        'acme-muted-soft': '#7a7a7d',
+        'acme-rule': '#d4d4d7',
+        'acme-tint': '#f5f5f8',
+        'acme-surface': '#e9e9ea',
+        'acme-white': '#ffffff',
+      },
+
+      fontFamily: {
+        acme: ["Barlow", "system-ui", "-apple-system", "sans-serif"],
+      },
+
+      fontSize: {
+        'acme-display': ['288px', { lineHeight: '0.95', fontWeight: '600' }],
+        'acme-section': ['120px', { lineHeight: '1.0', fontWeight: '600' }],
+        'acme-title': ['96px', { lineHeight: '1.05', fontWeight: '600' }],
+        'acme-h2': ['40px', { lineHeight: '1.15', fontWeight: '600' }],
+        'acme-h3': ['34px', { lineHeight: '1.2', fontWeight: '600' }],
+        'acme-metric': ['432px', { lineHeight: '1.0', fontWeight: '600' }],
+        'acme-lead': ['34px', { lineHeight: '1.4', fontWeight: '400' }],
+        'acme-subhead': ['40px', { lineHeight: '1.3', fontWeight: '700' }],
+        'acme-body-sm': ['28px', { lineHeight: '1.4', fontWeight: '400' }],
+        'acme-label': ['24px', { lineHeight: '1.3', fontWeight: '500' }],
+        'acme-eyebrow': ['24px', { lineHeight: '1.3', fontWeight: '500' }],
+        'acme-caption': ['24px', { lineHeight: '1.3', fontWeight: '400' }],
+      },
+
+      letterSpacing: {
+        'acme-eyebrow': '0.08em',
+        'acme-label': '0.08em',
+      },
+
+      borderRadius: {
+        'acme-sm': '2px',
+        'acme-md': '4px',
+        'acme-lg': '7px',
+      },
+    },
+  },
+};
+</script>
+
+<style>
+  html, body {
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #slide {
+    width:1920px; height:1080px; position:relative; overflow:hidden; font-family:Barlow, system-ui, -apple-system, sans-serif;
+    flex-shrink:0;
+  }
+  /* transform-origin defaults to center — correct for flex centering on html/body */
+  .gradient-text {
+    background:linear-gradient(60deg, #416180 0%, #416180 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  }
+</style>
+</head>
+<body>
+
+<div id="slide" data-template="06-title-body" class="bg-acme-tint">
+
+  <div class="absolute left-[80px] top-[64px] text-acme-eyebrow text-acme-muted uppercase tracking-acme-eyebrow font-acme ">Summary</div>
+  <div class="absolute left-[80px] top-[112px] w-[1760px] h-px bg-acme-rule"></div>
+  <div class="absolute left-[80px] top-[168px] w-[1700px]">
+    <h2 class="text-acme-title text-acme-ink font-acme font-semibold ">Three things changed this quarter</h2>
+  </div>
+  <div class="absolute left-[80px] top-[320px] w-[1660px] flex gap-6 items-start">
+    <span class="block w-[16px] h-[2px] bg-acme-primary mt-[18px] shrink-0"></span>
+    <p class="text-acme-lead text-acme-body font-acme">Migration closed. 412 tenants on the shared control plane, none left behind.</p>
+  </div>
+  <div class="absolute left-[80px] top-[460px] w-[1660px] flex gap-6 items-start">
+    <span class="block w-[16px] h-[2px] bg-acme-primary mt-[18px] shrink-0"></span>
+    <p class="text-acme-lead text-acme-body font-acme">Onboarding time fell from eleven days to four, measured to first production workload.</p>
+  </div>
+  <div class="absolute left-[80px] top-[600px] w-[1660px] flex gap-6 items-start">
+    <span class="block w-[16px] h-[2px] bg-acme-primary mt-[18px] shrink-0"></span>
+    <p class="text-acme-lead text-acme-body font-acme">Support load per account dropped 28% once the legacy path was retired.</p>
+  </div>
+
+  <!-- ── END BODY ─────────────────────────────────────── -->
+
+  <!-- ── Footer chrome — DO NOT EDIT ───────────────────────── -->
+  <div class="absolute bottom-[24px] right-[80px] flex items-center gap-6
+              text-[24px] text-acme-muted font-acme">
+    <span></span>
+    <span class="font-bold text-acme-muted" id="page-number">1</span>
+  </div>
+
+</div>
+
+<!-- ── Canvas scaler — keeps 1920×1080 at any viewport size ── -->
+<script>
+  (function(){ const s=document.getElementById('slide');
+    function fit(){
+      const r=Math.min(window.innerWidth/1920, window.innerHeight/1080);
+      s.style.width='1920px';
+      s.style.height='1080px';
+      s.style.transformOrigin='center center';
+      s.style.transform='scale('+r+')';
+      document.documentElement.style.overflow='hidden';
+      document.body.style.overflow='hidden';
+    }
+    fit(); window.addEventListener('resize',fit); })();
+</script>
+
+</body>
+</html>

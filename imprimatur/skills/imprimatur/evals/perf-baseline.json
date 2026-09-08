@@ -1,0 +1,99 @@
+{
+  "$comment": [
+    "Measured with scripts/telemetry/session_stats.py on real deck sessions. Every entry is",
+    "a session that ran the plugin at the stated version; nothing here is a target. Targets",
+    "live in scripts/telemetry/perf_check.py and TESTING-GUIDE.md. Append a block per",
+    "release after running the 7-slide fixture, and keep the old blocks — the point is the curve."
+  ],
+  "baselines": [
+    {
+      "version": "1.1.0",
+      "measured": "2026-09-02",
+      "note": "pre-optimization baseline from the first plan (client pitch deck A, 10 slides, one designer for all slides)",
+      "main": {"turns": 326, "output_tok": 300719, "cache_read_tok": 115499030, "ctx_peak": 485598},
+      "designer": {"turns": 251, "output_tok": 192669, "cache_read_tok": 72019281, "ctx_peak": 531314, "minutes": 40.5, "slide_cycle_s_median": 130.9},
+      "brand_audit": {"turns": 119, "output_tok": 54029, "minutes": 13.4},
+      "design_crit": {"turns": 27, "output_tok": 30186, "minutes": 6.2},
+      "hook_visible": false,
+      "pipeline_min_design_to_audited": 72
+    },
+    {
+      "version": "1.2.2",
+      "measured": "2026-09-07",
+      "session": "c02ce7a4-3def-4429-95ff-17b4e8e83c6d",
+      "note": "client deck A v2, 9 slides, cleanest post-optimization run: started at phase 4a with a locked brief and outline; two parallel chunks",
+      "main": {"turns": 117, "output_tok": 95735, "cache_read_tok": 16490169, "ctx_peak": 203170, "minutes": 37.4},
+      "designer_chunks": [
+        {"slides": "1-5", "turns": 133, "output_tok": 73613, "cache_read_tok": 17777008, "ctx_peak": 225524, "minutes": 14.5, "images": 3},
+        {"slides": "6-9", "turns": 102, "output_tok": 63506, "cache_read_tok": 10054581, "ctx_peak": 161721, "minutes": 12.2, "images": 1}
+      ],
+      "brand_audit": {"turns": 53, "output_tok": 22088, "minutes": 4.8, "images": 0},
+      "design_crit": {"turns": 24, "output_tok": 19352, "minutes": 10.5, "images": 0},
+      "hook_visible": false,
+      "pipeline_min_design_to_audited": 25
+    },
+    {
+      "version": "1.2.2",
+      "measured": "2026-09-07",
+      "session": "353047df-435b-4d4b-8856-c330f64570cc",
+      "note": "client discovery deck B v2, 11 slides, built inside a RESUMED 2026-08-10 session (opened at 590K context); orchestrator wrote 5 slides and the outline itself",
+      "main": {"turns": 790, "turns_on_build_day": 336, "output_tok": 932826, "cache_read_tok": 368572806, "ctx_peak": 844157, "images": 23, "wrote_slide": 5, "wrote_outline": 1},
+      "designer_chunks": [
+        {"slides": "1-5", "turns": 80, "tool_calls": 50, "turns_per_slide": 16, "output_tok": 42512, "cache_read_tok": 5288857, "ctx_peak": 122231, "minutes": 11.0},
+        {"slides": "6-10", "turns": 72, "output_tok": 47992, "cache_read_tok": 4466048, "ctx_peak": 111973, "minutes": 10.9},
+        {"slides": "9-11 (bespoke)", "turns": 93, "output_tok": 54262, "cache_read_tok": 8656850, "ctx_peak": 150482, "minutes": 10.9, "images": 3}
+      ],
+      "brand_audit": {"turns": 19, "output_tok": 4078, "minutes": 1.3, "images": 0},
+      "design_crit": {"turns": 16, "output_tok": 3771, "minutes": 1.0, "images": 0},
+      "hook_visible": false
+    },
+    {
+      "version": "1.2.2",
+      "measured": "2026-09-07",
+      "session": "1b5846bc-1f9e-4fba-ac1d-107a52e72fc5",
+      "note": "client deck B v2 review rounds + PDF/PPTX export in a fresh session; context grew 77K→614K linearly with no compaction; 51 slide Edits by the orchestrator; exporter debugged inline; 4 designer spawns for one slide",
+      "main": {"turns": 594, "output_tok": 509415, "cache_read_tok": 209212695, "ctx_peak": 614703, "minutes": 221.5, "images": 32},
+      "brand_audit": {"turns": 69, "output_tok": 30513, "minutes": 8.2, "images": 15},
+      "design_crit": {"turns": 23, "output_tok": 13192, "minutes": 3.0, "images": 0}
+    },
+    {
+      "version": "1.2.2",
+      "measured": "2026-09-07",
+      "session": "c2f42ee4-fe37-4ec5-9a50-c14ea70e58a6",
+      "note": "programme closing deck C, 7 slides; designer chunk 1 ran validate.py by hand 10×; brand-audit hand-measured logo pixels",
+      "main": {"turns": 152, "output_tok": 136071, "cache_read_tok": 26305222, "ctx_peak": 259874},
+      "designer_chunks": [
+        {"slides": "1-5", "turns": 131, "output_tok": 57373, "cache_read_tok": 14580504, "ctx_peak": 200011, "minutes": 15.0, "validate_by_hand": 10, "images": 2},
+        {"slides": "6-7", "turns": 55, "output_tok": 24749, "cache_read_tok": 2947592, "ctx_peak": 74329, "minutes": 6.5}
+      ],
+      "brand_audit": {"turns": 76, "output_tok": 32549, "minutes": 9.0, "images": 27},
+      "design_crit": {"turns": 19, "output_tok": 14662, "minutes": 3.4, "images": 0},
+      "hook_visible": false
+    },
+    {
+      "version": "1.2.5",
+      "measured": "2026-09-07",
+      "session": "5b5b4fb2-04ae-41ea-8df4-50d25185d898",
+      "note": "case-study ONE-slider from a PPTX source; 11 agent spawns, 12 browser computer calls, 5 image reads in main",
+      "main": {"turns": 353, "output_tok": 250910, "cache_read_tok": 86726580, "ctx_peak": 360685, "minutes": 104.8, "images": 5}
+    },
+    {
+      "version": "1.3.1",
+      "measured": "2026-09-07",
+      "session": "36a1ea56-e532-48b2-9dbb-e60003f0cbdb",
+      "note": "TESTING-GUIDE performance scenario (7-slide internal Q2 status deck, fast-track), run headlessly via `claude -p` through phase 8 (no harness, no export); the first post-audit measurement. Cost reported by the CLI: USD 10.46. 25/28 perf_check: template slides took 9 and 12.5 tool calls (median) against the ≤ 8 target (designer edited card-by-card: 8 Edits on a 3-card slide — doctrine now says one Edit per region); the bespoke roadmap slide took 27 against ≤ 25, of which 5 were failed `render.py` invocations (the module had no CLI — added in 1.3.2).",
+      "main": {"turns": 117, "tool_calls": 46, "output_tok": 103214, "cache_read_tok": 9511581, "ctx_peak": 126405, "minutes": 19.3, "images": 0, "wrote_slide": 0, "read_image": 0, "validate_by_hand": 0, "qa_runs": 4, "legacy_hook_fires": 0},
+      "narrative": {"turns": 6, "output_tok": 4546, "ctx_peak": 21060, "minutes": 1.2},
+      "designer_chunks": [
+        {"slides": "1-4", "turns": 64, "tool_calls": 43, "output_tok": 25848, "cache_read_tok": 2605010, "ctx_peak": 77992, "minutes": 5.5, "images": 2, "calls_per_slide": {"01": 7, "02": 9, "03": 13, "04 (bespoke)": 12}, "validate_by_hand": 0},
+        {"slides": "5-7", "turns": 97, "tool_calls": 61, "output_tok": 32112, "cache_read_tok": 5097115, "ctx_peak": 93938, "minutes": 7.1, "images": 3, "calls_per_slide": {"05": 11, "06 (bespoke)": 27, "07": 14}, "validate_by_hand": 0},
+        {"slides": "revision round 1 (4 fixes)", "turns": 24, "tool_calls": 16, "output_tok": 5838, "ctx_peak": 34469, "minutes": 1.4, "images": 1}
+      ],
+      "brand_audit": {"turns": 13, "output_tok": 4233, "ctx_peak": 49673, "minutes": 1.0, "images": 0},
+      "design_crit": {"turns": 10, "output_tok": 3370, "ctx_peak": 41989, "minutes": 0.7, "images": 0},
+      "hook_visible": "designers acknowledged the static verdict 4× and ran validate.py 0× (subagent hook events leave no transcript record)",
+      "phases": {"narrative_min": 1.2, "design_min": 7.1, "audit_min": 1.0, "pipeline_min_design_to_audited": 9.1, "designer_spawns": 3, "auditor_spawns": 2, "max_prompt_bytes": 2038},
+      "wall_clock_min_intake_to_assembled": 20
+    }
+  ]
+}

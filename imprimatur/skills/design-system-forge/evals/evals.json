@@ -1,0 +1,33 @@
+{
+  "skill_name": "design-system-forge",
+  "evals": [
+    {
+      "id": 1,
+      "name": "pptx-with-declared-theme",
+      "prompt": "The client sent over their master PowerPoint template — it's at ~/brand/AcmeCorp_Master_2024.pptx. I need to get their design system out of it so we can build decks in their style. Can you set that up?",
+      "expected_output": "A pack directory with design-system.json, tailwind.config.js, slide-base.html, templates/, off-brand-fixture.html and PROVENANCE.md. Theme colours read from theme1.xml and marked 'declared' in provenance. verify_pack.py run, with templates passing and the fixture failing.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "pdf-guidelines-thin-source",
+      "prompt": "here's northwind's brand guidelines pdf (Northwind_Brand_2025.pdf, 6 pages, mostly logo usage). need a design system pack for the deck pipeline out of it",
+      "expected_output": "Probes the PDF, states plainly that a 6-page logo-usage PDF yields a partial system, names what could not be determined (type ramp, muted, viz order), and either forges a partial pack with the gaps marked in PROVENANCE.md or asks for a better source. Must NOT pad missing tokens with plausible defaults.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "inaccessible-muted",
+      "prompt": "Build a design system pack from ~/brand/nordvik-deck.pptx. Their brand grey is #9A9A9A — that's the one they use for all the small caption text.",
+      "expected_output": "Notices #9A9A9A is roughly 2.8:1 on white and fails AA for body text. Does not silently ship it as `muted`. Either darkens it for the muted role and records the derivation and the ratio, or keeps it as muted-soft for decorative use only — and says which, with numbers.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "not-a-forge-task",
+      "prompt": "We already have the Acme pack set up. Can you make me a 10-slide capability deck for the Northwind data platform work?",
+      "expected_output": "Does NOT forge a pack. Recognises this as deck production against an existing pack and routes to a deck orchestrator instead.",
+      "files": []
+    }
+  ]
+}

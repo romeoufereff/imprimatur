@@ -1,0 +1,29 @@
+{
+  "description": "Input fixture for the narrative stage eval: a locked brief + approved 9-slide skeleton. deck-narrative must return one complete SLIDE BRIEF per skeleton slide.",
+  "brief": {
+    "audience": "executive",
+    "outcome": "pitch",
+    "length": 9,
+    "context": "the brand data-platform modernization pitch to Nordwind Retail GmbH (fictional); delivery lead presenting; €1.5M engagement",
+    "must_haves": [
+      "Legacy DWH nightly-batch bottleneck",
+      "Lakehouse target architecture",
+      "14-month ROI proof",
+      "Risk mitigation with named owners"
+    ],
+    "dials": { "density": "sparse", "variance": "high" },
+    "anti_references": ["not a wall of identical cards", "not hypey"],
+    "deck_brief_path": "../stage-designer/deck-brief.md"
+  },
+  "skeleton": [
+    { "slide": 1, "message": "Cover — Nordwind data platform: from nightly batch to same-hour insight" },
+    { "slide": 2, "message": "The nightly batch window caps every downstream decision at T+1" },
+    { "slide": 3, "message": "A lakehouse platform removes the batch ceiling without a big-bang migration" },
+    { "slide": 4, "message": "Target architecture: ingest, lakehouse core, self-service consumption" },
+    { "slide": 5, "message": "Proof: the order-tracking pilot cut refresh latency from 14h to 20min" },
+    { "slide": 6, "message": "14 months to ROI" },
+    { "slide": 7, "message": "Every delivery risk has a named owner and a running mitigation" },
+    { "slide": 8, "message": "Phased delivery: pilot, scale-out, run — value in each phase" },
+    { "slide": 9, "message": "Closing — the two decisions we need from this committee" }
+  ]
+}
