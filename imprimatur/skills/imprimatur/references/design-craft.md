@@ -18,8 +18,10 @@ number, the pack wins — it is the thing that knows the brand.
 - **Only the weights in `typography.allowedWeights`.** Three may coexist on one slide when
   each plays a role (light display + bold title/emphasis + regular body). Anything outside
   that list is a `validate.py` FAIL, so read the list rather than assuming the usual three.
-- Eyebrow: `text-[16px] font-bold uppercase tracking-[0.22em] text-<prefix>-muted`
-- Body bullets: `text-[20px] text-<prefix>-body leading-relaxed`
+- Eyebrow: the pack's `eyebrow` type step, bold, uppercase, its eyebrow tracking token, the
+  `muted` role (`pack_brief.py` prints the exact class string) — never a raw `text-[Npx]`;
+  packs with `rules.banRawFontSizes` FAIL those
+- Body bullets: the pack's `body` type step in the `body` role, relaxed leading
 - Sentence case everywhere except eyebrows
 
 ### Minimum font sizes

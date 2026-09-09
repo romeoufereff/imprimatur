@@ -44,6 +44,18 @@ than forcing the content into the wrong frame.
 | Closing slide: decisions, next steps, the ask | Recap plus an explicit next step — ends on an action, not a restatement |
 | Narrative + photo/screenshot | Image on one side (or full-bleed) with adjacent or overlaid narrative |
 | Time-phased roadmap with date ranges (Gantt), or a milestone list | Horizontal timeline with bars (or dated line items) spanning a date axis |
+| One argument with its context: evidence on one side, the narrative / client quote / three facts that frame it on the other | Two-thirds content + one-third full-height side panel (a "why it matters" panel); or the mirror — narrow framing panel + a large visual slot |
+| Proof: 2–3 past engagements, each challenge → approach → result | Uniform case cards with a header strip, labelled sections and a metric row |
+| Proof by imagery: lab, field, product photography | Photo strip: full-bleed images across the top half, short captioned columns below |
+| "At a glance" credentials: 6–8 headline numbers plus who we work with | Stat grid (big numerals, caps labels) beside a short narrative, client/partner tiles |
+| Partners, clients, certifications — the logo wall | Categorised rows of equal logo tiles |
+| Argument in 2–3 columns that must land on ONE conclusion | Labelled text columns closed by a single takeaway strip (bold lead sentence) |
+| Engagement structure: this stage now, the next stage later, what each delivers | Stage header cards (active / next) over assess-define-deliverables columns |
+| Three parallel lists under a shared framing (challenges / capabilities / expertise) | Three columns under one continuous header bar, label + line rows |
+| 2–3 threats, drivers or risks that each carry a consequence | Saturated cards (icon, heading, text) each closed by a "result" footer |
+| The ask at the end of a presales deck: what a session covers, what the room gets | Narrative + bullets beside one saturated call-to-action card (duration, commitment, next step) |
+| Legal opener: confidentiality, do-not-share | Statement slide: one mark, one word, one instruction — before the agenda |
+| **Dark deck** (the brief or anti-references ask for a dark canvas) | Only if the loaded pack declares a dark family (`pack_inventory.py` lists the variants): lock the canvas at intake and use those variants throughout — cover, agenda, dividers, breathers, content, proof, closing. A pack without one stays on its light canvas; never mix canvases inside one deck |
 | Donut/pie/gauge/cycle/hub-spoke/org-chart/funnel/pyramid/chevron-process/matrix/venn/swimlane-roadmap, or matching a reference screenshot | **`{PLUGIN}/skills/svg-reconstruct/`** inside the closest host template — see `designer-bespoke-svg.md`; never hand-author these |
 | Spatial concept with no template match and no svg-reconstruct recipe (rings, custom flows, ecosystems, before/after) | **Bespoke SVG** inside the closest host template — see `designer-bespoke-svg.md` |
 
