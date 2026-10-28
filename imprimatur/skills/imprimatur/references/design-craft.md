@@ -148,7 +148,10 @@ Four sanctioned sources, in order of preference:
 - Start from a `<defs>` block in one of the pack's own snippets, if it has one
   (`grad-box`, `grad-tint`, `grad-line`, `arrow`, `box-shadow`) — keep the ids.
 - Text inside the SVG follows the type scale: primary labels 20–22px weight 700,
-  sub-labels 16px `<a pack hex>`.
+  sub-labels at the pack's prose floor (`typography.minFontSizePx` — 18px in the EPAM
+  pack) `<a pack hex>`. `validate.py` applies that floor to SVG text as written
+  (`font-size="…"` attributes and inline `font-size:` styles, user units read as px);
+  nothing inside an `<svg>` goes below it.
 - The bespoke SVG **is the slide's focal point** — don't pair it with competing cards.
 - Each labeled SVG node counts as one atomic item toward the deck's DENSITY-dial budget
   (sparse ≤8 / balanced ≤12 / dense ≤14 — see `taste-dials.md`, beside this file).

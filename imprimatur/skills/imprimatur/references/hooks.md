@@ -12,7 +12,7 @@ tool events are additionally scoped with the `if` field (`Edit(**/*.html)`,
 | `slide_write_check.py` | `PostToolUse` · `Write`/`Edit` of any `*.html` (acts on `NN-slug.html` only) | Runs **only** `scripts/validate.py` (~0.2 s, no browser) on the written file and returns `STATIC PASS <file>` or `STATIC FAIL <file>: <lines>` as `hookSpecificOutput.additionalContext`, which Claude Code injects into the model's context beside the tool result. Catches the cheap-to-fix-now class — off-palette hex, banned class, missing `data-template`, weight/size floors, a head that differs from its template's — before it is copied into the next slide |
 | `designer_stop_gate.py` | `SubagentStop` · matcher `^imprimatur:deck-designer$` | Collects the `NN-*.html` files that agent wrote or edited (from **its own** transcript, `agent_transcript_path` — not `deck-state.json`, whose `written` rows may belong to an earlier chunk) and runs `scripts/qa.py --files … --json` on exactly those. Any FAIL → `{"decision": "block", "reason": …}`, so a designer cannot hand back a chunk that has not passed the browser checks. With the QA cache, a chunk the designer already checked costs ~1 s here |
 | `orchestrator_guard.py` | `PreToolUse` · `Write`, `Read` | In the **main session only** (no `agent_type` in the hook input): denies a `Write` of a slide file, a `Write` of `narrative-outline.md` inside a deck folder, and a `Read` of an image inside a deck folder. `Edit` is untouched (text-only fixes on ≤ 3 slides stay allowed). Inside any subagent it is a no-op. The three rules were prose until the 2026-09-07 audit measured what losing them cost |
-| `agent_header.py` | `SubagentStart` · matcher `^imprimatur:` | Injects `PLUGIN=… · PACK=… · DECK=… · DS_NAME=…` as `additionalContext` into every plugin agent at spawn. `DECK` comes from `$DECK`, else a deck-shaped `cwd`, else `<unset>` (the agent then reads it from its prompt) |
+| `agent_header.py` | `SubagentStart` · matcher `^imprimatur:` | Injects `PLUGIN=… · PACK=… · DECK=… · DS_NAME=…` as `additionalContext` into every plugin agent at spawn. `DECK` comes from the spawn prompt's `DECK=` line (payload `prompt`, else the subagent's own transcript, else the parent transcript's newest Agent call for that type), else `$DECK`, else a deck-shaped `cwd`, else `<unset>`; `PACK` follows that deck's `deck-state.json`, or the prompt's `PACK=` when no deck resolves |
 | `block_large_template_read.py` | `PreToolUse` · `Read` | **Blocks** reading any file under `{PACK}/templates/` larger than 100 KB (the two world-map templates are 827 KB each) and replies with the exact `new_slide.py` command to use instead. A body-region peek with `offset`/`limit` is allowed |
 | `block_batch_slide_write.py` | `PreToolUse` · `Bash` | **Blocks** any Bash command that writes slide HTML — redirection, heredoc, `cp` onto a slide path, `sed -i`, or a loop writing `.html`. Slide files are created only via `new_slide.py` (one slide per invocation; a loop over it is still blocked) and edited only via `Write`/`Edit`. Engine scripts are allowlisted. Note for plugin maintainers: it also blocks a *maintenance* script whose text merely mentions a loop and a slide-shaped filename — write those with the `Edit` tool |
 | `deck_consistency.py` | `PostToolUse` · `Write`/`Edit` of `deck-metadata.json` | Flags `slide_count` drift against the `NN-*.html` files actually on disk — the add/remove-a-slide checklist in `phase-7-8-assembly-preview.md` |
@@ -52,6 +52,16 @@ chart/pipeline/bespoke slides, logo geometry, gradient contrast, contrast hard-F
 orchestrator's whole-deck run) happen once per chunk via `qa.py --deck-dir D --files … --json`,
 and the stop gate re-runs them (from cache when nothing changed) before the agent's report
 is accepted.
+
+## deck-motion and the hooks
+
+`choreograph.py` rewrites every slide's `<head>` in one pass, which is exactly the shape
+`block_batch_slide_write.py` exists to block — it is allowlisted (`ENGINE_SCRIPTS`) because
+it appends an insert-only block to already-designed, already-audited slides: housekeeping,
+no design judgment (the same argument that sanctions `_archive/` moves). The per-write
+static check tolerates the block (insert-only head diff, nth-child selectors that no palette
+or class regex can match); `qa.py` gains the motion row (`check_motion.py`) only for slides
+that carry the block. A deck that declined motion at §1 never meets any of this.
 
 ## Maintenance
 

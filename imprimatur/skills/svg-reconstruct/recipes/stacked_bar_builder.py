@@ -1,5 +1,5 @@
 """Builder for stacked bar charts."""
-from svgkit import text, canvas, schema
+from svgkit import text, canvas, schema, presets
 
 
 def build(config_path, out_svg_path=None):
@@ -24,18 +24,18 @@ def build(config_path, out_svg_path=None):
                         f'height="{h:.1f}" fill="{s["color"]}"/>')
             stack += v
         body.append(text.label(bx+bw/2, p["y"]+p["h"]+22, cat, 13,
-                    color="#333", weight="600"))
+                    color=presets.BODY, weight="600"))
 
     lx = p["x"]
     for s in segs:
         body.append(f'<rect x="{lx}" y="{p["y"]-30}" width="14" height="14" '
                     f'rx="3" fill="{s["color"]}"/>')
-        body.append(text.label(lx+20, p["y"]-23, s["name"], 12, color="#333",
+        body.append(text.label(lx+20, p["y"]-23, s["name"], 12, color=presets.BODY,
                     weight="500", anchor="start"))
         lx += 34 + len(s["name"])*7
 
     body.append(f'<line x1="{p["x"]}" y1="{p["y"]+p["h"]}" x2="{p["x"]+p["w"]}" '
-                f'y2="{p["y"]+p["h"]}" stroke="#333"/>')
+                f'y2="{p["y"]+p["h"]}" stroke="{presets.BODY}"/>')
 
     doc = canvas.svg(cfg["width"], cfg["height"], "", "".join(body),
                      bg=cfg.get("background", "#ffffff"))

@@ -42,6 +42,11 @@ ENGINE_SCRIPTS = (
     # 1.3.0 additions (2026-09-07 audit): read-only helpers and telemetry.
     "narrative_brief.py", "recipe_brief.py", "check_logo.py", "check_gradient.py",
     "hook_probe.py", "perf_check.py", "release.sh",
+    # 1.5.0 deck-motion: choreograph.py appends an insert-only head block (spec + runtime
+    # tag) to EVERY already-designed, already-audited slide in one pass — housekeeping on
+    # written slides (the _archive argument), no design judgment, so it is sanctioned here
+    # rather than forced through N Edits. check_motion/test_motion only read.
+    "choreograph.py", "check_motion.py", "test_motion.py",
     # new_slide.py IS a sanctioned engine script for a single slide — but unlike
     # the others above, looping it is itself the batching violation (N slides
     # created without a per-slide look in between), so it gets its own dedicated

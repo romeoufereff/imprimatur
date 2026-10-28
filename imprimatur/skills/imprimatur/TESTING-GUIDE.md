@@ -204,6 +204,20 @@ already there.
 orchestrator `Write` of a slide · a spawn prompt over 3 KB or containing pasted HTML ·
 `design-decisions.md` with paragraphs in it · a deck version built inside an older session.
 
+**Where the tokens are not (decided 2026-10-04).** The "caveman" terse-prose skill was
+evaluated for inter-agent messages and not adopted. Its own README puts `/caveman` at a
+3 % median output reduction on Opus 5.5 (only `/ultracave` reaches 35 %); JetBrains'
+independent run on 86 agentic SkillsBench tasks measured −8.5 % output tokens, ≈ −10 %
+cost, quality unchanged (p = 0.82) — the advertised 65 % was prose chat. Here the messages
+are already capped tables (spawn ≤ 3 KB, one report each) and the v1.3.1 run puts agent
+prose at ≈ 1–2 % of a deck's tokens. What was large and is now measured instead:
+`pack_brief.py` printed 9.85 KB of a promised 2 KB (the 92-template index, which only the
+planner needs) → designers and auditors boot with `--no-templates` (≤ 3.5 KB,
+`test_helpers.py`); every designer chunk returned the whole `design-decisions.md` → the
+report is `--summary --slides A-B`; `session_stats.py` now records `report_bytes`,
+`sendmessage_bytes` and the prose-vs-tool output split, and `perf_check.py` fails a
+report over 4 KB. Do not re-open the caveman question without a new measurement.
+
 ---
 
 ## Testing Workflow (Per Test Case)

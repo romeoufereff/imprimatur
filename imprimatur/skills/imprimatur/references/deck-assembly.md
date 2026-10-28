@@ -26,6 +26,7 @@ deck/
 ├── deck-state.json      ← Progress + the slide list of record (references/state-tracking.md)
 ├── _archive/<date>/     ← Stale NN-*.html moved here before designers are spawned
 ├── index.html          ← Written by scripts/assemble_deck.py (viewer template lives inside the script)
+├── motion/             ← ONLY when deck-state `motion.enabled` and the pack has a motion block: viewer.js (+ motion.js, motion.json after §7b)
 ├── deck-metadata.json  ← Written by scripts/assemble_deck.py (fields below)
 ├── slide-review.html   ← Generated at §9 by deck-review (click-to-comment harness)
 └── annotations.json    ← Exported by the user from the harness; refined against, then review-clean
@@ -62,6 +63,15 @@ The index.html file provides:
 - Navigation buttons (prev/next)
 - Slide counter (current / total)
 - Keyboard shortcuts (arrow keys to navigate)
+
+When the deck opted into motion at §1 (`deck-state.json` → `motion.enabled: true`) **and** the
+pack declares a `motion` block, the script writes the two-stage motion viewer instead and
+copies `motion/viewer.js` beside it: the same controls, plus a transition between slides
+(`crossfade` / `push` / `zoom-through` from the pack, overridable per deck), `→` advancing
+build-in steps before the slide, `S` toggling motion (persisted), `F` fullscreen,
+`index.html?static=1` forcing the static deck. A deck without the opt-in gets the plain viewer
+byte-for-byte — motion costs a static deck nothing. `deck-metadata.json` records which one
+was written (`motion.enabled`).
 
 Verify after assembly: open it in a browser — all slides load, prev/next work, the counter
 shows the right total, arrow keys navigate.

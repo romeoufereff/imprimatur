@@ -28,6 +28,20 @@
       "prompt": "We already have the Acme pack set up. Can you make me a 10-slide capability deck for the Northwind data platform work?",
       "expected_output": "Does NOT forge a pack. Recognises this as deck production against an existing pack and routes to a deck orchestrator instead.",
       "files": []
+    },
+    {
+      "id": 5,
+      "name": "amend-inaccessible-token",
+      "prompt": "The muted grey in our existing design system pack at ~/packs/northwind/ is #9A9A9A and someone flagged it fails contrast on captions. Can you fix it across the pack?",
+      "expected_output": "Recognises this as amending an existing pack, not forging a new one. Runs verify_pack.py / audit_pack.py for a baseline first. States the contrast ratio and the darkened value with numbers, changes design-system.json + tailwind.config.js + slide-base.html first, then greps for and updates every template/chart/snippet that hardcodes the old hex — not just the config. Re-runs audit_pack.py and verify_pack.py afterward and reports both results. Updates PROVENANCE.md and bumps version.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "audit-existing-pack-drift",
+      "prompt": "Can you check whether the templates in ~/packs/acme/ still match tailwind.config.js? I think someone hand-edited one of the slides and I'm not sure what else might be out of sync.",
+      "expected_output": "Runs scripts/audit_pack.py against the pack rather than re-forging or eyeballing individual files. Reports token collisions, config drift between templates and the canonical tailwind.config.js, undersized raw font sizes, and any off-token hex colours as PROBLEM vs warning per the script's output — not a generic 'looks fine' without running the tool.",
+      "files": []
     }
   ]
 }

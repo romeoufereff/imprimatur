@@ -39,7 +39,7 @@ install the plugin from it:
 You can also point `marketplace add` at the GitHub repo directly (`romeoufereff/imprimatur`)
 instead of a local clone.
 
-Or, without the plugin mechanism (you lose the four hooks — the mechanical checks stop firing
+Or, without the plugin mechanism (you lose the hooks — the mechanical checks stop firing
 automatically, though everything else still works): symlink `imprimatur/skills/imprimatur` into
 `~/.claude/skills/`.
 

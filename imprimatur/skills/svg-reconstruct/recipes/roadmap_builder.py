@@ -14,13 +14,13 @@ def build(config_path, out_svg_path=None):
 
     for ci, c in enumerate(cols):
         x = ox + label_w + ci*col_w
-        body.append(text.label(x+col_w/2, oy-14, c, 14, color="#555", weight="700"))
+        body.append(text.label(x+col_w/2, oy-14, c, 14, color=presets.MUTED, weight="700"))
 
     for li, lane in enumerate(lanes):
         y = oy + li*lane_h
         body.append(f'<rect x="{ox}" y="{y}" width="{label_w+len(cols)*col_w}" '
                     f'height="{lane_h}" fill="{presets.SURFACE if li%2==0 else "#fff"}"/>')
-        body.append(text.label(ox+12, y+lane_h/2, lane, 13, color="#333",
+        body.append(text.label(ox+12, y+lane_h/2, lane, 13, color=presets.BODY,
                     weight="700", anchor="start"))
 
     for it in cfg["items"]:

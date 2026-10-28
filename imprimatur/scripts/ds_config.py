@@ -10,8 +10,17 @@ flavor, because the only thing it ever knew about the brand came from the pack's
 own design-system.json.
 
 Resolution order:
-  1. $DECK_DESIGN_SYSTEM        — absolute path to a design-system folder
-  2. <repo>/imprimatur-design-system — the pack shipped alongside the engine
+  1. an explicit path (`--design-system`, or `load(explicit=...)`)
+  2. the DECK's own declaration — `design_system` in its deck-state.json. The deck folder
+     is found from `deck_dir=`, else $DECK, else `--deck-dir`/`--files`/any path argument
+     on the command line (walking up to the nearest deck-state.json), else the cwd.
+  3. $DECK_DESIGN_SYSTEM        — the machine-wide default pack
+  4. <repo>/imprimatur-design-system — the pack shipped alongside the engine
+
+  (2) exists because hooks and scripts run in the SAME process environment for every deck
+  on the machine: with only (3) a client deck built while the env named the EPAM pack had
+  every per-write verdict and stop gate judged against the wrong brand (2026-09-22). A deck
+  records its pack once, at phase 4a, and every consumer reads it from there.
 
 Usage:
     from ds_config import load
@@ -45,6 +54,36 @@ MANIFEST_NAME = "design-system.json"
 # have changed shape, which fails in ways that look like design bugs rather than version
 # bugs. Refusing loudly costs one clear error; guessing costs an afternoon.
 SUPPORTED_CONTRACT = 1
+
+# Engine-side defaults for the pack's optional `motion` block (contract 1.1, 2026-10).
+# Brand-neutral by construction: timings, easings, the effect vocabulary the runtime
+# implements, the QA tolerance. Which DOM regions play which role (`roleSelectors`,
+# `roleEffects`) is brand knowledge and is NOT defaulted — see DesignSystem.motion().
+MOTION_DEFAULTS = {
+    "enabled": False,
+    "entranceBudgetMs": 1600,     # whole entrance build, cover/divider may override per template
+    "staggerCapMs": 500,          # items × stagger ≤ this, so a group reads as one beat
+    "distancePx": 24,             # fade-up / fade-left travel
+    "durationMs": {"fast": 300, "base": 450, "slow": 700},
+    "personality": "corporate",   # ONE motion language per deck (1.6.0): corporate · premium · playful · energetic — see choreograph.PERSONALITIES
+    "followThrough": True,        # cinematic cards: the content settles a beat after its container
+    "easing": {"transition": "power2.inOut"},   # arrival eases come from the personality; `in`/`hero`/`move` override them
+    "allowedEffects": ["fade", "fade-up", "fade-left", "rise", "blur-in", "wipe-right", "wipe-up", "wipe-down", "words", "words-mask", "lines-mask",
+                       "spring", "whip", "slam", "snap", "rise-rotate", "grow-y", "grow-x", "draw", "count-up",
+                       "pop", "lift", "settle", "focus-pull"],
+    "level": "auto",              # auto: entrance only · cinematic: slower waterfall pacing, parallax depth, idle camera/drift
+    "cinematicBudgetFactor": 1.4,
+    "idle": {},                   # cinematic only — see the pack's motion.idle (camera / drift / breathe)
+    "variety": "rotate",          # rotate: a role's effect list turns with the slide number · fixed: first entry
+    "blur": "subtle",             # how much defocus the brand allows: none · subtle (≈ 40 %) · full
+    "focusPull": "on",            # off: a director's focus-pull becomes a settle on the focal element (no whole-slide defocus)
+    "transition": {"type": "crossfade", "durationMs": 450},   # crossfade | push | zoom-through | none
+    "gsapUrl": "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js",
+    "roleSelectors": {},
+    "roleEffects": {},
+    "templateOverrides": {},
+    "qa": {"maxMae": 0.0, "maxInlineBytes": 4096},
+}
 
 
 class DesignSystem:
@@ -246,6 +285,43 @@ class DesignSystem:
         """Pack-declared rules on where its gradients may be used (see editor.gradients)."""
         return self.get("editor.gradients", {}) or {}
 
+    # ── motion (deck-motion module, contract 1.1) ──────────────────────
+    def motion_enabled(self):
+        """True when the pack ships a `motion` block that is not switched off.
+
+        No block → no motion: the engine never animates a brand that has not said how it
+        moves. A deck additionally opts in at intake (deck-state.json `motion.enabled`);
+        both must hold before choreograph.py or the two-frame viewer do anything.
+        """
+        block = self.get("motion")
+        return isinstance(block, dict) and bool(block.get("enabled", True))
+
+    def motion(self):
+        """The pack's motion block merged over MOTION_DEFAULTS (one level deep for dicts).
+
+        Defaults carry only engine-neutral values — durations, easings, the effect vocabulary,
+        the QA tolerance. Selectors and role→effect bindings are brand-specific and come from
+        the pack alone: an empty `roleSelectors` means choreograph.py finds nothing to animate
+        beyond structural groups, which is the correct answer for a pack that declared none.
+        """
+        block = self.get("motion") if isinstance(self.get("motion"), dict) else {}
+        out = {}
+        for k, v in MOTION_DEFAULTS.items():
+            pv = block.get(k)
+            if isinstance(v, dict) and isinstance(pv, dict):
+                merged = dict(v)
+                merged.update({kk: vv for kk, vv in pv.items() if not str(kk).startswith("$")})
+                out[k] = merged
+            elif pv is not None:
+                out[k] = pv
+            else:
+                out[k] = v if not isinstance(v, (dict, list)) else (dict(v) if isinstance(v, dict) else list(v))
+        for k, v in block.items():
+            if k not in out and not str(k).startswith("$"):
+                out[k] = v
+        out["enabled"] = self.motion_enabled()
+        return out
+
     def spacing(self):
         """{name: value} from the pack's spacing constants (slide edges, chrome…)."""
         return dict(re.findall(r"'([\w-]+)'\s*:\s*'([^']+)'", self._block("spacing")))
@@ -291,31 +367,121 @@ class DesignSystem:
         }
 
 
-def find_root(explicit=None):
-    """Locate the active design-system folder without loading it."""
-    candidates = [explicit, os.environ.get("DECK_DESIGN_SYSTEM"), DEFAULT_DS]
-    for cand in candidates:
+STATE_NAME = "deck-state.json"
+STATE_KEY = "design_system"
+
+
+def deck_dir_from(hint):
+    """Nearest ancestor of `hint` (a file or directory path) that holds deck-state.json."""
+    if not hint:
+        return None
+    probe = os.path.abspath(os.path.expanduser(str(hint)))
+    if os.path.isfile(probe):
+        probe = os.path.dirname(probe)
+    while True:
+        if os.path.isfile(os.path.join(probe, STATE_NAME)):
+            return probe
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            return None
+        probe = parent
+
+
+def guess_deck_dir(argv=None):
+    """The deck a script or hook is working on, without every caller having to say so.
+
+    Order: $DECK · `--deck-dir X` on the command line · any command-line argument that is
+    an existing path inside a deck (a slide file, the deck folder) · the cwd.
+    """
+    d = deck_dir_from(os.environ.get("DECK"))
+    if d:
+        return d
+    args = list(sys.argv[1:] if argv is None else argv)
+    for i, a in enumerate(args):
+        if a == "--deck-dir" and i + 1 < len(args):
+            d = deck_dir_from(args[i + 1])
+            if d:
+                return d
+        elif a.startswith("--deck-dir="):
+            d = deck_dir_from(a.split("=", 1)[1])
+            if d:
+                return d
+    for a in args:
+        if not a.startswith("-") and os.path.exists(os.path.expanduser(a)):
+            d = deck_dir_from(a)
+            if d:
+                return d
+    return deck_dir_from(os.getcwd())
+
+
+def pack_from_deck_state(deck_dir):
+    """The pack a deck declares in its state file, or None.
+
+    `design_system` is an absolute path (or one relative to the deck folder, or ~-prefixed)
+    to a folder holding design-system.json. A declaration that points nowhere is reported
+    on stderr and ignored — falling through to the env/default is the lesser evil, but the
+    deck should be fixed, not silently re-branded.
+    """
+    if not deck_dir:
+        return None
+    path = os.path.join(deck_dir, STATE_NAME)
+    try:
+        with open(path, encoding="utf-8") as f:
+            declared = (json.load(f) or {}).get(STATE_KEY)
+    except (OSError, ValueError):
+        return None
+    if isinstance(declared, dict):
+        declared = declared.get("root") or declared.get("path")
+    if not declared or not isinstance(declared, str):
+        return None
+    cand = os.path.expanduser(declared)
+    if not os.path.isabs(cand):
+        cand = os.path.join(deck_dir, cand)
+    cand = os.path.abspath(cand)
+    if os.path.isfile(os.path.join(cand, MANIFEST_NAME)):
+        return cand
+    print(f"ds_config: {path} declares {STATE_KEY}={declared!r} but no {MANIFEST_NAME} "
+          f"is there — ignoring it; fix the deck state.", file=sys.stderr)
+    return None
+
+
+def candidates(explicit=None, deck_dir=None):
+    """Every place the pack may come from, in precedence order (None entries included)."""
+    deck = deck_dir_from(deck_dir) if deck_dir else guess_deck_dir()
+    return [explicit, pack_from_deck_state(deck), os.environ.get("DECK_DESIGN_SYSTEM"),
+            DEFAULT_DS]
+
+
+def find_root(explicit=None, deck_dir=None):
+    """Locate the active design-system folder without loading it.
+
+    `deck_dir` (a deck folder, or any path inside one) makes the deck's own declaration
+    win over the environment; without it the deck is guessed from $DECK, the command line
+    and the cwd — see guess_deck_dir().
+    """
+    for cand in candidates(explicit, deck_dir):
         if cand and os.path.isfile(os.path.join(os.path.expanduser(cand), MANIFEST_NAME)):
             return os.path.abspath(os.path.expanduser(cand))
     return None
 
 
-def load(explicit=None):
+def load(explicit=None, deck_dir=None):
     """Load the active design system, or exit with an actionable message.
 
     Exiting rather than falling back to defaults is deliberate: a silent fallback
     would validate slides against rules nobody declared, and report a pass that
     means nothing.
     """
-    root = find_root(explicit)
+    root = find_root(explicit, deck_dir)
     if root is None:
-        searched = [c for c in (explicit, os.environ.get("DECK_DESIGN_SYSTEM"), DEFAULT_DS) if c]
+        searched = [c for c in candidates(explicit, deck_dir) if c]
         sys.exit(
             f"No design system found. Looked for {MANIFEST_NAME} in:\n"
             + "\n".join(f"  - {os.path.expanduser(c)}" for c in searched)
             + "\n\nEvery brand-specific value the pipeline uses lives in a design-system "
-              "folder alongside its design-system.json manifest. Put one at "
-              f"{DEFAULT_DS}, or set DECK_DESIGN_SYSTEM to its path."
+              "folder alongside its design-system.json manifest. Declare it as "
+              f"\"{STATE_KEY}\" in the deck's {STATE_NAME}, put one at {DEFAULT_DS}, or set "
+              "DECK_DESIGN_SYSTEM to its path."
         )
     with open(os.path.join(root, MANIFEST_NAME), encoding="utf-8") as f:
         data = json.load(f)
@@ -354,10 +520,11 @@ if __name__ == "__main__":
                     help="Print 'PLUGIN=<abs> · PACK=<abs> · DECK=<abs> · DS_NAME=<name>' "
                         "instead of the human-readable summary (WP8)")
     ap.add_argument("--deck-dir", default=None,
-                    help="Deck folder for DECK= in --header (falls back to $DECK, else '<unset>')")
+                    help="Deck folder: its deck-state.json 'design_system' selects the pack, and "
+                         "it fills DECK= in --header (falls back to $DECK, else '<unset>')")
     args = ap.parse_args()
 
-    ds = load(args.design_system)
+    ds = load(args.design_system, deck_dir=args.deck_dir)
 
     if args.header:
         _print_header(ds, args.deck_dir or os.environ.get("DECK"))
@@ -368,3 +535,9 @@ if __name__ == "__main__":
         print(f"canvas:    {ds.canvas[0]}x{ds.canvas[1]}")
         on = sorted(k for k, v in (ds.get("rules", {}) or {}).items() if v is True)
         print(f"rules on:  {', '.join(on)}")
+        if ds.motion_enabled():
+            m = ds.motion()
+            print(f"motion:    on — transition {m['transition'].get('type')} {m['transition'].get('durationMs')} ms, "
+                  f"entrance ≤ {m.get('entranceBudgetMs')} ms, roles: {', '.join(k for k in m.get('roleSelectors', {}) if not str(k).startswith('$'))}")
+        else:
+            print("motion:    off (pack declares no `motion` block — the §1 motion question is moot)")

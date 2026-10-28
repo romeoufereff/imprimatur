@@ -16,11 +16,26 @@ Chunk agents then run in parallel without needing each other's output.
    `design-decisions.md` (`| # | NN-slug.html | <stem> | <visual> | <focal ≤ 12 words> | planned |`).
 3. Lock the accent as a `Locked choices` bullet (`- accent: <role>`) plus any cross-slide
    constraint the brief implies (icon style, chart colour mapping). If a locked choice needs
-   CSS to hold across the deck — a gradient override, a co-branding lockup, a token
-   remap — write it **once** as `{DECK}/deck-overrides.html` (a `<style>`/`<script>`
-   fragment); `new_slide.py` injects it into every slide's `<head>` at copy time and the
-   head-identity check tolerates it. Never ask the designer to retype an override per slide
-   (one real deck carried the same 459-character block as a hand Edit on all eleven).
+   CSS to hold across the deck — a gradient override or a token remap — write it **once**
+   as `{DECK}/deck-overrides.html` (a `<style>`/`<script>` fragment); `new_slide.py` injects
+   it into every slide's `<head>` at copy time and the head-identity check tolerates it.
+   Never ask the designer to retype an override per slide (one real deck carried the same
+   459-character block as a hand Edit on all eleven).
+   **A co-brand lockup is declared, not pasted.** Copy the client's logo (PNG or SVG,
+   transparent background, dark ink) into `{DECK}/assets/` and add to `deck-state.json`:
+   `"cobrand": {"logo": "assets/<client>.png", "position": "left"}` (optional `"name"` for
+   the alt text, optional `"sizes"` — defaults: content 22 px client mark + 24 px gap,
+   cover 48 px + 40 px; the pack logo keeps the template's own height). Do it before the
+   first `new_slide.py` call: every copy then carries the client mark left of the pack logo,
+   centres aligned, rendered white where the template's logo is white — the designer never
+   touches the logo row and no agent runs a deck-local script. Slides created before the
+   declaration: `python3 {PLUGIN}/scripts/cobrand.py --deck-dir {DECK}` (idempotent).
+   `qa.py` then measures every lockup (both marks present, client mark left with the
+   declared gap and size, one vertical centre ±2 px, the same bottom offset as the other
+   content slides, white client mark exactly when the pack logo is white) and FAILs a slide
+   that breaks it. Why: on 2026-10-20 designers hand-pasted a 23 KB base64 wordmark per
+   slide and truncated it twice, the deck's own helper script was denied to subagents, and
+   `data-logo="ok"` exempted the lockup from every check.
 4. `python3 {PLUGIN}/scripts/plan_check.py --deck-dir D` — fix every violation it prints
    (max repeats, adjacent repeat on `high`, min visual slides, breather cadence, hero moment)
    until it says PASS. The pack declares its breather templates (`templateRoles.breather` in
@@ -63,7 +78,8 @@ Briefs: <deck>/narrative-outline.md  (SLIDE 6 … SLIDE 10)
 Plan:  <deck>/design-decisions.md   (locked — templates and accent are not yours to change)
 Do: per slide new_slide.py → one ranged Read → Edits → log_slide.py; static verdict fixed
     before moving on; then ONE `qa.py --deck-dir DECK --files <your five> --json`, fix,
-    re-run on touched files only; report = `log_slide.py --summary` + escalations.
+    re-run on touched files only; report = `log_slide.py --summary --slides A-B` (its own
+    chunk only) + escalations.
     No per-slide prose.
 ```
 

@@ -13,7 +13,7 @@ def build(config_path, out_svg_path=None):
 
     # --- hub ---
     hub = cfg["hub"]
-    hub_stops = hub.get("gradient") or [presets.ACCENT, presets._shade(presets.ACCENT, -0.25)]
+    hub_stops = hub.get("gradient") or [st[1] for st in presets.HUB_GRADIENT_STOPS]
     defs.append(grad.radial(
         "hub", [["0%", hub_stops[0], 1], ["100%", hub_stops[1], 1]],
         fx="35%", fy="35%",

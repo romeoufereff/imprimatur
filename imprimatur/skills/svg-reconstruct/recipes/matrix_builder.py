@@ -14,7 +14,7 @@ def build(config_path, out_svg_path=None):
         body.append(f'<path d="{g.rounded_rect(qx+2, qy+2, half-4, half-4, 10)}" '
                     f'fill="{q[i].get("color",presets.TINT)}"/>')
         body.append(text.label(qx+half/2, qy+30, q[i]["label"], 16,
-                    color="#333", weight="700"))
+                    color=presets.BODY, weight="700"))
 
     for it in cfg.get("items", []):
         px = ox + it["x"] * size
@@ -22,12 +22,12 @@ def build(config_path, out_svg_path=None):
         body.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{it.get("r",8)}" '
                     f'fill="{it.get("color",presets.PRIMARY)}"/>')
         if it.get("label"):
-            body.append(text.label(px+12, py, it["label"], 12, color="#333",
+            body.append(text.label(px+12, py, it["label"], 12, color=presets.BODY,
                         weight="500", anchor="start"))
 
     body.append(text.label(ox+half, oy+size+30, cfg["x_axis"], 14,
-                color="#555", weight="600"))
-    body.append(text.label(ox-30, oy+half, cfg["y_axis"], 14, color="#555",
+                color=presets.MUTED, weight="600"))
+    body.append(text.label(ox-30, oy+half, cfg["y_axis"], 14, color=presets.MUTED,
                 weight="600", rotate=-90))
 
     doc = canvas.svg(cfg["width"], cfg["height"], "".join(defs), "".join(body),

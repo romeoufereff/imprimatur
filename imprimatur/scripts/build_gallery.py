@@ -3,6 +3,11 @@
 
 Run after adding, renaming, or archiving any template:
     python3 scripts/build_gallery.py
+    python3 scripts/build_gallery.py --check   # exit 1 if the pack's gallery is missing or stale
+
+A pack that ships its gallery (the EPAM pack tracks gallery.html in git since 1.7.1) is gated
+by `--check` in validate_all.sh: a template added or renamed without regenerating the
+gallery fails the release instead of leaving a catalog that silently omits it.
 
 Each card embeds the template in a full-size iframe scaled to card width, so the
 template's own scaler computes r=1 and renders pixel-exact.
@@ -61,6 +66,8 @@ def main():
                     help="Where to write (default: the pack's docs.gallery path)")
     ap.add_argument("--dry-run", action="store_true",
                     help="Report what would be written without touching the pack")
+    ap.add_argument("--check", action="store_true",
+                    help="Write nothing; exit 1 when the gallery on disk differs from a fresh build")
     args = ap.parse_args()
 
     ds = load()
@@ -112,8 +119,22 @@ rescale();
 </script></body></html>'''
 
     out = args.out or ds.path(ds.get('docs.gallery', 'gallery.html'))
+    if args.check:
+        try:
+            current = open(out, encoding='utf-8').read()
+        except OSError:
+            print(f"{os.path.basename(out)} missing — run scripts/build_gallery.py [{ds.name}]")
+            sys.exit(1)
+        if current != html:
+            listed = set(json.loads(m.group(1))) if (m := re.search(r'const files = (\[.*?\]);', current)) else set()
+            gone, new = sorted(listed - set(files)), sorted(set(files) - listed)
+            print(f"{os.path.basename(out)} is stale — run scripts/build_gallery.py [{ds.name}]"
+                  + (f"; missing {new}" if new else "") + (f"; lists removed {gone}" if gone else ""))
+            sys.exit(1)
+        print(f"{os.path.basename(out)} current ({len(files)} templates) [{ds.name}]")
+        return
     if args.dry_run:
-        print(f"would write {out} ({len(cards)} templates) [{ds.name}]")
+        print(f"would write {out} ({len(files)} templates) [{ds.name}]")
         return
     open(out, 'w', encoding='utf-8').write(html)
     print(f"{os.path.basename(out)} written ({len(files)} templates) [{ds.name}]")

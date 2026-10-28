@@ -17,7 +17,9 @@ to scale(1) there, so getBoundingClientRect() values ARE slide pixels) and walks
            <img>, a translucent (opacity < 1) decorative wash, or any other
            background-image (photos, layered/radial gradients, repeating patterns) →
            element screenshot PNG placed as a picture. Descendants are baked in and NOT
-           walked further.
+           walked further. An <img> whose src is an SVG file or data: URI (a co-brand
+           logo) also carries that SVG, with its CSS resolved, so it converts to native
+           shapes like an inline <svg> instead of shipping as a 1x screenshot.
 
 Gradient text (background-clip:text) keeps its glyphs editable: the run is emitted with
 color=the design system's primary and flagged "accent" — a documented approximation, since PPTX has
@@ -35,8 +37,13 @@ import base64
 import json
 import os
 import sys
+from urllib.parse import unquote, urlparse
+from urllib.request import url2pathname
 
 from playwright.sync_api import sync_playwright
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gradients import css_gradient_window  # noqa: E402
 
 # Depth-independent: anchor on the plugin marker rather than counting `..` hops.
 _here = os.path.dirname(os.path.abspath(__file__))
@@ -70,25 +77,53 @@ WALK_JS = r"""
     return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]] : null;
   };
   const hex = (rgb) => '#' + rgb.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
-  // Single linear-gradient(Ndeg, #hex P%, ...) -> {angle, stops:[{color,pos}]}, or null
-  // for anything else (radial, multiple layers, no explicit stop percentages) — the
-  // shape this engine can turn into a native PPTX gradient fill, nothing fancier.
+  // Single linear-gradient -> {angle, stops:[{color,pos,alpha}]}, or null for anything
+  // else (radial, repeating, several layers, length stop positions, corner directions)
+  // — the shape this engine can turn into a native PPTX gradient fill, nothing fancier.
+  // Direction: `Ndeg`, `to top|right|bottom|left`, or none (180deg). Stops without a
+  // position are spread the way CSS spreads them (first 0 %, last 100 %, the rest evenly
+  // between their positioned neighbours): Tailwind's `bg-gradient-to-r from-… to-…`
+  // computes to `linear-gradient(to right, rgb(…), rgb(…))` and used to fall through to
+  // a screenshot that took the pill's text with it (2026-10-23).
   const parseGrad = (bgi) => {
     if (!bgi || bgi === 'none') return null;
     const single = bgi.match(/^linear-gradient\((.+)\)$/);
     const gradCount = (bgi.match(/gradient\(/g) || []).length;
     if (!single || gradCount !== 1) return null;
-    const inner = single[1];
-    const angM = inner.match(/^\s*([\d.]+)deg\s*,/);
-    const stops = [];
-    const re = /rgba?\([\d.,\s]+\)\s*([\d.]+)%/g;
-    let m;
-    while ((m = re.exec(inner)) !== null) {
-      const col = parse(m[0]);
-      if (col) stops.push({ color: hex(col), pos: parseFloat(m[1]) });
+    const parts = [];
+    let depth = 0, cur = '';
+    for (const ch of single[1]) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; } else cur += ch;
     }
-    if (angM && stops.length >= 2) return { angle: parseFloat(angM[1]), stops };
-    return null;
+    parts.push(cur.trim());
+    const SIDES = { 'to top': 0, 'to right': 90, 'to bottom': 180, 'to left': 270 };
+    let angle = 180;
+    if (/^-?[\d.]+deg$/.test(parts[0])) angle = parseFloat(parts.shift());
+    else if (parts[0] in SIDES) angle = SIDES[parts.shift()];
+    else if (/^to\s/.test(parts[0])) return null;          // corners depend on the box's aspect
+    const stops = [];
+    for (const part of parts) {
+      const m = part.match(/^(rgba?\([\d.,\s]+\))(?:\s+([\d.]+)%)?$/);
+      const col = m && parse(m[1]);
+      // alpha is kept per stop: a fade to transparent (cover image-slot overlays,
+      // `#FFF 0% → rgba(255,255,255,0) 100%`) used to lose it and export as a solid
+      // white block with a hard edge (2026-10-07, client covers).
+      if (!col) return null;                                 // px positions, hints, double stops
+      stops.push({ color: hex(col), pos: m[2] === undefined ? null : parseFloat(m[2]), alpha: col[3] });
+    }
+    if (stops.length < 2) return null;
+    if (stops[0].pos === null) stops[0].pos = 0;
+    if (stops[stops.length - 1].pos === null) stops[stops.length - 1].pos = 100;
+    for (let i = 1; i < stops.length; i++) {
+      if (stops[i].pos !== null) continue;
+      let j = i;
+      while (stops[j].pos === null) j++;
+      const a = stops[i - 1].pos, step = (stops[j].pos - a) / (j - i + 1);
+      for (let k = i; k < j; k++) stops[k].pos = Math.round((a + step * (k - i + 1)) * 1000) / 1000;
+    }
+    return { angle, stops };
   };
   const rectOf = (el) => {
     const r = el.getBoundingClientRect(), s = slide.getBoundingClientRect();
@@ -139,13 +174,23 @@ WALK_JS = r"""
       const col = parse(cs.color);
       const accent = (cs.webkitBackgroundClip || cs.backgroundClip) === 'text';
       const ls = cs.letterSpacing === 'normal' ? 0 : parseFloat(cs.letterSpacing) || 0;
-      const size = parseFloat(cs.fontSize);
+      let size = parseFloat(cs.fontSize);
       // per-RUN line-height: a leaf may mix sizes (28px title + 20px desc in one card);
       // one container-level value would squeeze the larger line (real bug, slide 11)
       const lh = parseFloat(cs.lineHeight);
+      // <sup>/<sub> (vertical-align super|sub) is a baseline-offset RUN, not a new line:
+      // a:rPr baseline (+30 % / -25 %). PowerPoint draws an offset run smaller on its
+      // own, so the run carries its parent's size — the browser's own smaller sup size
+      // would be shrunk twice. ("migVisor™" put the ™ in a paragraph of its own, 2026-10-23.)
+      const baseline = cs.verticalAlign === 'super' ? 30 : cs.verticalAlign === 'sub' ? -25 : 0;
+      if (baseline && node.parentElement) size = parseFloat(getComputedStyle(node.parentElement).fontSize) || size;
       return {
         size,
+        baseline: baseline || undefined,
         weight: parseInt(cs.fontWeight, 10) || 400,
+        // the computed stack, so a two-family pack (display titles + text body) keeps
+        // each run's own face; build_pptx resolves it against the pack's families
+        family: cs.fontFamily,
         color: accent ? '__DS_ACCENT__' : (col ? hex(col) : '__DS_INK__'),
         accent,
         // the deck's OWN computed gradient (respects any !important override style
@@ -158,18 +203,26 @@ WALK_JS = r"""
         lineHeight: isFinite(lh) ? lh : Math.round(size * 1.2),
       };
     };
+    // `sp`: is there whitespace between this word and the one before it? A styled run
+    // inside a word (mig<span class="accent">V</span>isor) splits it across text nodes
+    // with nothing between them; joining every pair of words with ' ' exported it as
+    // "mig V isor" (2026-10-23). Trailing whitespace carries over to the next text node.
     const measureWords = (textNode, st, words) => {
+      const s = textNode.textContent;
       const re = /\S+/g;
-      let m;
-      while ((m = re.exec(textNode.textContent)) !== null) {
+      let m, end = -1;
+      while ((m = re.exec(s)) !== null) {
         const range = document.createRange();
         range.setStart(textNode, m.index);
         range.setEnd(textNode, m.index + m[0].length);
         const rects = range.getClientRects();
         const rr = rects.length ? rects[0] : null;
-        words.push({ w: m[0], st, top: rr ? Math.round(rr.top) : 0,
+        const sp = end >= 0 || m.index > 0 || !!words.ws;
+        words.push({ w: m[0], st, sp, top: rr ? Math.round(rr.top) : 0,
                      box: rr ? { l: rr.left, t: rr.top, r: rr.right, b: rr.bottom } : null });
+        end = m.index + m[0].length;
       }
+      words.ws = end >= 0 ? end < s.length : (!!words.ws || s.length > 0);
     };
     const wordsToRuns = (words) => {
       const runs = [];
@@ -180,13 +233,22 @@ WALK_JS = r"""
         if (last && last.text !== '\n' && JSON.stringify(last.st) === JSON.stringify(st)) last.text += text;
         else runs.push({ text, st });
       };
-      let lastTop = null;
+      // A word starts a new line when its glyph box does not overlap the current line's
+      // band by half its height. (A >3 px move of the glyph TOP used to break the line,
+      // so a raised <sup> or a larger inline span became a paragraph of its own.)
+      const overlap = (b, band) => Math.min(b.b, band.b) - Math.max(b.t, band.t);
+      let band = null, started = false, prev = null;
       for (const wd of words) {
-        if (wd.br) { runs.push({ text: '\n', st: wd.st || null }); lastTop = null; continue; }
-        if (lastTop !== null && Math.abs(wd.top - lastTop) > 3) runs.push({ text: '\n', st: wd.st });
-        else if (lastTop !== null) emit(' ', wd.st);
+        if (wd.br) { runs.push({ text: '\n', st: wd.st || null }); started = false; band = null; prev = null; continue; }
+        const b = wd.box;
+        const newLine = started && b && band && overlap(b, band) < 0.5 * Math.min(b.b - b.t, band.b - band.t);
+        if (newLine) runs.push({ text: '\n', st: wd.st });
+        // no whitespace but a visible gap (an inline-block's margin) still reads as a space
+        else if (started && (wd.sp || (b && prev && prev.box && b.l - prev.box.r > 0.2 * (wd.st.size || 16)))) emit(' ', wd.st);
         emit(wd.w, wd.st);
-        lastTop = wd.top;
+        if (b) band = (band && !newLine) ? { t: Math.min(band.t, b.t), b: Math.max(band.b, b.b) } : { t: b.t, b: b.b };
+        started = true;
+        prev = wd;
       }
       return runs.filter(r => r.text.length);
     };
@@ -204,7 +266,67 @@ WALK_JS = r"""
       }
     };
     collect(el, styleOf(el));
-    return wordsToRuns(words);
+    return { runs: wordsToRuns(words), words };
+  };
+
+  // Where the text actually sits inside its box. Padding, borders, table-cell
+  // vertical-align, flex centring — every CSS route to "text not at the top-left" is
+  // read off the MEASURED word boxes instead of re-implementing CSS layout: compare the
+  // text's line-box extent with the content box. Result: PPTX insets (px) + a vertical
+  // anchor that keeps the behaviour when the user later edits the text in PowerPoint
+  // (a centred cell stays centred). Before this the text frame had zero insets and a
+  // top anchor, so table cells and padded labels rendered flush top-left (slide 9/12
+  // of a 2026-10-01 client deck).
+  const layoutOf = (cs, r, words, align) => {
+    const px = (v) => parseFloat(v) || 0;
+    const pad = {
+      l: px(cs.paddingLeft) + px(cs.borderLeftWidth),
+      t: px(cs.paddingTop) + px(cs.borderTopWidth),
+      r: px(cs.paddingRight) + px(cs.borderRightWidth),
+      b: px(cs.paddingBottom) + px(cs.borderBottomWidth),
+    };
+    const ws = words.filter(w => w.box);
+    if (!ws.length) return { insets: pad, anchor: 'top' };
+    const sb = slide.getBoundingClientRect();
+    let top = Infinity, bot = -Infinity, left = Infinity, right = -Infinity;
+    for (const w of ws) {
+      // glyph box ± half-leading = the line box CSS actually stacks
+      const hl = ((w.st.lineHeight || 0) - (w.box.b - w.box.t)) / 2;
+      top = Math.min(top, w.box.t - hl - sb.top);
+      bot = Math.max(bot, w.box.b + hl - sb.top);
+      left = Math.min(left, w.box.l - sb.left);
+      right = Math.max(right, w.box.r - sb.left);
+    }
+    const TOL = 3;
+    const ins = { ...pad };
+    const cT = r.y + pad.t, cB = r.y + r.h - pad.b, cL = r.x + pad.l, cR = r.x + r.w - pad.r;
+    const gT = top - cT, gB = cB - bot;
+    // When the text fills the content box exactly, every anchor fits the pixels; the
+    // CSS intent then decides, so an edited cell keeps centring the way the HTML would.
+    const fd = cs.flexDirection || 'row';
+    const flex = (cs.display || '').includes('flex');
+    const cssV = (cs.display === 'table-cell')
+      ? ({ middle: 'middle', bottom: 'bottom' })[cs.verticalAlign]
+      : flex ? ({ center: 'middle', 'flex-end': 'bottom', end: 'bottom' })[
+                 fd.startsWith('column') ? cs.justifyContent : cs.alignItems]
+      : undefined;
+    let anchor = 'top';
+    if (Math.abs(gT) <= TOL && Math.abs(gB) <= TOL && cssV) anchor = cssV;
+    else if (Math.abs(gT) <= TOL) anchor = 'top';
+    else if (Math.abs(gT - gB) <= TOL) anchor = 'middle';
+    else if (Math.abs(gB) <= TOL) anchor = 'bottom';
+    else ins.t = Math.max(0, top - r.y);          // unexplained offset: pin where it is
+    if (align === 'center') {
+      if (Math.abs((left + right) / 2 - (cL + cR) / 2) > TOL) {
+        ins.l = Math.max(0, left - r.x); ins.r = Math.max(0, r.x + r.w - right);
+      }
+    } else if (align === 'right') {
+      if (Math.abs(cR - right) > TOL) ins.r = Math.max(0, r.x + r.w - right);
+    } else if (Math.abs(left - cL) > TOL) {
+      ins.l = Math.max(0, left - r.x);            // e.g. flex justify-content on bare text
+    }
+    for (const k of Object.keys(ins)) ins[k] = Math.round(ins[k] * 100) / 100;
+    return { insets: ins, anchor };
   };
 
   // Direct text nodes of a NON-leaf container (e.g. a flex cell holding both text and a
@@ -220,7 +342,7 @@ WALK_JS = r"""
       const ls = c.letterSpacing === 'normal' ? 0 : parseFloat(c.letterSpacing) || 0;
       const size = parseFloat(c.fontSize);
       const lh = parseFloat(c.lineHeight);
-      return { size, weight: parseInt(c.fontWeight, 10) || 400,
+      return { size, weight: parseInt(c.fontWeight, 10) || 400, family: c.fontFamily,
                color: accent ? '__DS_ACCENT__' : (col ? hex(col) : '__DS_INK__'),
                accent, accentGradient: accent ? c.backgroundImage : undefined,
                upper: c.textTransform === 'uppercase',
@@ -291,21 +413,26 @@ WALK_JS = r"""
     // Raster cases — screenshot, don't descend. SVGs additionally get serialized so the
     // builder can embed them as native vector (svgBlip) with the PNG as fallback.
     const isBgImageRaster = !clipText && !elGrad && cs.backgroundImage && cs.backgroundImage !== 'none';
-    if (tag === 'canvas' || tag === 'img' || isBgImageRaster || tag === 'svg') {
+    // A background-image the parser cannot make native (a grid-line pattern, a layered
+    // gradient border, a radial wash, a photo) on an element that HOLDS content: the
+    // background alone becomes the picture (extract() hides the content for the shot)
+    // and the walk descends, so the text and cards on it stay editable shapes on top.
+    // Until 1.6.5 the whole element was screenshotted — text, pills and cards baked into
+    // one PNG with a warning (a client roadmap's gantt track, a card's gradient border,
+    // 2026-10-23), and designers split the layer by hand.
+    const bgOnly = isBgImageRaster && !['canvas', 'img', 'svg'].includes(tag) &&
+                   (el.children.length > 0 || (el.textContent || '').trim().length > 0);
+    if (bgOnly) {
       el.setAttribute('data-ir-raster', String(rasterSeq));
-      // A background-image div (pattern/photo/layered gradient) that ALSO holds real
-      // descendant content — text, a gradient pill, a card — silently bakes that content
-      // into the screenshot instead of extracting it as native shapes, since walk() never
-      // descends into a raster node. Flag it here so the trap is caught during extraction
-      // rather than someone noticing flattened pictures in PowerPoint later (real bug:
-      // a client deck's 07-parallel-lanes.html — gradient pill badges lost inside a grid-line-pattern
-      // parent div). See pptx-export SKILL.md, "Authoring trap: rasterized parents swallow
-      // children".
-      const swallowedText = isBgImageRaster ? (el.textContent || '').trim() : '';
-      out.push({ kind: 'raster', id: rasterSeq++, rect: r, isSvg: tag === 'svg',
-                 tag, cls: (el.getAttribute('class') || '').slice(0, 60),
-                 bgSwallowsContent: isBgImageRaster && swallowedText.length > 0,
-                 swallowedText: swallowedText.slice(0, 80) });
+      out.push({ kind: 'raster', id: rasterSeq++, rect: r, isSvg: false, bgOnly: true,
+                 tag, cls: (el.getAttribute('class') || '').slice(0, 60) });
+    } else if (tag === 'canvas' || tag === 'img' || isBgImageRaster || tag === 'svg') {
+      el.setAttribute('data-ir-raster', String(rasterSeq));
+      // <img src="logo.svg">: extract() reads the file and inlines it for svg2shapes
+      const src = tag === 'img' ? (el.currentSrc || el.src || '') : '';
+      const imgSvg = /^data:image\/svg\+xml|\.svg([?#]|$)/i.test(src) ? src : undefined;
+      out.push({ kind: 'raster', id: rasterSeq++, rect: r, isSvg: tag === 'svg', imgSvg,
+                 tag, cls: (el.getAttribute('class') || '').slice(0, 60) });
       return;
     }
 
@@ -322,18 +449,26 @@ WALK_JS = r"""
       }
     }
     const nSides = Object.keys(sides).length;
-    if (hasFill || nSides === 4) {
+    // a bg-only picture already carries this element's fill, borders and pseudo layers
+    if (!bgOnly && (hasFill || nSides === 4)) {
       out.push({
         kind: 'box', rect: r,
         fill: bgc && bgc[3] > 0.05 ? hex(bgc) : null,
         fillAlpha: bgc && bgc[3] > 0.05 ? bgc[3] : 0,
         gradient: elGrad || undefined,
         gradientCss: elGrad ? cs.backgroundImage : undefined,
+        // background-size/-position/-repeat: a gradient sized to run across several
+        // elements (continuous header bars) must be cut per element — see gradients.py
+        gradientLayout: elGrad ? {
+          size: cs.backgroundSize, position: cs.backgroundPosition, repeat: cs.backgroundRepeat,
+          w: r.w - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0),
+          h: r.h - (parseFloat(cs.borderTopWidth) || 0) - (parseFloat(cs.borderBottomWidth) || 0),
+        } : undefined,
         border: nSides === 4 ? sides.Top : (sides.Left || sides.Top || null),
         radius: parseFloat(cs.borderTopLeftRadius) || 0,
       });
     }
-    if (nSides > 0 && nSides < 4) {
+    if (!bgOnly && nSides > 0 && nSides < 4) {
       // partial borders (divider rules, left-accent bars) → thin filled rects
       const mk = (rr, col) => out.push({ kind: 'box', rect: rr, fill: col, fillAlpha: 1,
                                          border: null, radius: 0 });
@@ -346,7 +481,7 @@ WALK_JS = r"""
     // Pseudo-element decorations (bullet dots, accent bars): best-effort synthesis of
     // solid-background ::before/::after as box nodes. Only measurable cases (px sizes;
     // absolute px offsets relative to this element) — text-content pseudos are skipped.
-    for (const which of ['::before', '::after']) {
+    for (const which of (bgOnly ? [] : ['::before', '::after'])) {
       const ps = getComputedStyle(el, which);
       if (!ps || ps.content === 'none' || ps.display === 'none') continue;
       const pb = parse(ps.backgroundColor);
@@ -365,11 +500,13 @@ WALK_JS = r"""
 
     // Text leaf → emit text node, stop descending (runs cover inline children).
     if (isTextLeaf(el)) {
-      const runs = runsOf(el);
+      const { runs, words } = runsOf(el);
       if (runs.length) {
+        const align = ({ start: 'left', end: 'right', '-webkit-center': 'center' })[cs.textAlign] || cs.textAlign;
+        const lay = layoutOf(cs, r, words, align);
         out.push({
-          kind: 'text', rect: r, runs,
-          align: cs.textAlign === 'start' ? 'left' : cs.textAlign,
+          kind: 'text', rect: r, runs, align,
+          anchor: lay.anchor, insets: lay.insets,
           lineHeight: parseFloat(cs.lineHeight) || null,
         });
       }
@@ -413,11 +550,38 @@ ISOLATE_JS = """
 }
 """
 
+# A bg-only raster (a background-image element that holds content) is shot with its
+# content invisible: every child at opacity 0 (opacity cannot be undone by a descendant,
+# unlike visibility) and the element's own text transparent, so the PNG is the
+# background alone and the walk's native text/shapes sit on it without a ghost copy.
+HIDE_CONTENT_JS = """
+(id) => {
+  const t = document.querySelector(`[data-ir-raster="${id}"]`);
+  if (!t) return;
+  const keep = (el, props) => el.setAttribute('data-ir-content',
+    JSON.stringify(props.map(p => [p, el.style.getPropertyValue(p), el.style.getPropertyPriority(p)])));
+  keep(t, ['color', '-webkit-text-fill-color', 'text-shadow']);
+  t.style.setProperty('color', 'transparent', 'important');
+  t.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+  t.style.setProperty('text-shadow', 'none', 'important');
+  for (const c of t.children) {
+    keep(c, ['opacity']);
+    c.style.setProperty('opacity', '0', 'important');
+  }
+}
+"""
+
 RESTORE_JS = """
 () => {
   for (const el of document.querySelectorAll('[data-ir-hidden]')) {
     el.style.visibility = '';
     el.removeAttribute('data-ir-hidden');
+  }
+  for (const el of document.querySelectorAll('[data-ir-content]')) {
+    for (const [p, v, pri] of JSON.parse(el.getAttribute('data-ir-content'))) {
+      if (v) el.style.setProperty(p, v, pri); else el.style.removeProperty(p);
+    }
+    el.removeAttribute('data-ir-content');
   }
   for (const n of document.querySelectorAll('[data-ir-bg]')) {
     const [bc, bi] = JSON.parse(n.getAttribute('data-ir-bg'));
@@ -457,10 +621,133 @@ SERIALIZE_SVG_JS = """
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   if (!clone.getAttribute('font-family')) clone.setAttribute('font-family', cs.fontFamily);
+  // SVG text styled by a CSS class (font-traf-display) has no font-family attribute for
+  // svg2shapes to read: write each text/tspan's computed family onto the clone
+  const srcT = el.querySelectorAll('text, tspan'), dstT = clone.querySelectorAll('text, tspan');
+  srcT.forEach((t, i) => {
+    if (dstT[i] && !dstT[i].getAttribute('font-family'))
+      dstT[i].setAttribute('font-family', getComputedStyle(t).fontFamily);
+  });
+  // chart or diagram (svg2shapes.picture_reason): a chart library's SVG keeps its
+  // provenance, and an author's data-pptx on the svg or any ancestor travels with it
+  if (el.closest('[_echarts_instance_]')) clone.setAttribute('data-pptx-chart', 'echarts');
+  const want = el.closest('[data-pptx]');
+  if (want) clone.setAttribute('data-pptx', want.getAttribute('data-pptx'));
   const r = el.getBoundingClientRect();
   clone.setAttribute('width', String(Math.round(r.width)));
   clone.setAttribute('height', String(Math.round(r.height)));
   return clone.outerHTML;
+}
+"""
+
+# <img src="*.svg"> → the same svg2shapes path as an inline <svg>. The file is parsed and
+# probed inside a shadow root sized to the <img>, so its own <style> (Illustrator's
+# `.st0{fill:…}`; svg2shapes reads attributes and style="" only) resolves there and
+# nowhere else on the slide, and each element's computed paint is written onto it as
+# attributes. The <img>'s CSS filter is honoured where it is a flat recolour —
+# brightness(0) paints the mark black, `brightness(0) invert(1)` white (the co-brand
+# lockup on dark covers); any other filter returns null and the picture stays.
+# Until 1.6.6 such an <img> was a 1x element screenshot: the EPAM mark in a client
+# co-brand lockup shipped as an 86x31 px PNG (2026-10-23).
+INLINE_IMG_SVG_JS = """
+([id, text]) => {
+  const img = document.querySelector(`[data-ir-raster="${id}"]`);
+  if (!img) return null;
+  const f = (getComputedStyle(img).filter || 'none').replace(/\\s+/g, ' ').trim();
+  const mono = f === 'none' ? null : f === 'brightness(0)' ? 'rgb(0, 0, 0)'
+             : f === 'brightness(0) invert(1)' ? 'rgb(255, 255, 255)' : undefined;
+  if (mono === undefined) return null;
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+  const src = doc.documentElement;
+  if (!src || src.localName !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
+  const r = img.getBoundingClientRect();
+  const host = document.createElement('div');
+  host.style.cssText = `position:fixed;left:0;top:0;width:${r.width}px;height:${r.height}px;` +
+                       'visibility:hidden;pointer-events:none';
+  document.body.appendChild(host);
+  try {
+    const svg = document.importNode(src, true);
+    if (!svg.getAttribute('viewBox')) {
+      const w = parseFloat(svg.getAttribute('width')), h = parseFloat(svg.getAttribute('height'));
+      if (!(w > 0 && h > 0)) return null;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    }
+    svg.setAttribute('width', String(r.width));
+    svg.setAttribute('height', String(r.height));
+    host.attachShadow({ mode: 'open' }).appendChild(svg);
+    const frag = (v) => v.replace(/url\\(["']?[^#"')]*(#[^"')]+)["']?\\)/, 'url($1)');
+    const paint = 'path, rect, circle, ellipse, line, polyline, polygon, text, tspan';
+    svg.querySelectorAll('*').forEach((el) => {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' && el.matches(paint + ', g') && !el.closest('defs, symbol')) {
+        el.remove();
+        return;
+      }
+      if (cs.opacity !== '1') el.setAttribute('opacity', cs.opacity);
+      if (!el.matches(paint) || el.closest('defs, clipPath, mask, marker, pattern')) return;
+      for (const k of ['fill', 'stroke']) {
+        const v = frag(cs.getPropertyValue(k));
+        el.setAttribute(k, mono && v !== 'none' ? mono : v);
+        el.style.removeProperty(k);
+      }
+      el.setAttribute('stroke-width', String(parseFloat(cs.strokeWidth) || 0));
+      for (const k of ['fill-opacity', 'stroke-opacity']) el.setAttribute(k, cs.getPropertyValue(k));
+      if (el.matches('text, tspan') && !el.getAttribute('font-family'))
+        el.setAttribute('font-family', cs.fontFamily);
+    });
+    svg.querySelectorAll('style').forEach((st) => st.remove());
+    svg.removeAttribute('style');
+    const want = img.closest('[data-pptx]');
+    if (want) svg.setAttribute('data-pptx', want.getAttribute('data-pptx'));
+    return new XMLSerializer().serializeToString(svg);
+  } finally {
+    host.remove();
+  }
+}
+"""
+
+
+def img_svg_text(src):
+    """The markup behind an <img> SVG src: a file:// path or a data: URI. Remote URLs stay
+    pictures — the exporter never fetches."""
+    try:
+        if src.startswith('file:'):
+            with open(url2pathname(urlparse(src).path), encoding='utf-8') as f:
+                return f.read()
+        if src.startswith('data:'):
+            head, _, body = src.partition(',')
+            return (base64.b64decode(body).decode('utf-8') if ';base64' in head
+                    else unquote(body))
+    except (OSError, ValueError, UnicodeDecodeError):
+        pass
+    return None
+
+
+# Speaker notes → ppt/notesSlides. Explicit opt-in only: ordinary HTML comments are
+# authoring scaffolding ("<!-- Footer chrome -->") and must never leak into the presenter
+# view. Two spellings are recognised, anywhere in the document:
+#   <aside class="notes">…</aside>   (reveal.js convention; also .speaker-notes or
+#                                     [data-speaker-notes]) — keep it display:none
+#   <!-- notes: … -->                (or "speaker notes:" / "speaker-notes:")
+# <p>/<li> children become separate paragraphs; otherwise blank lines split them.
+NOTES_JS = r"""
+() => {
+  const paras = [];
+  const clean = (t) => t.split(/\n\s*\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  for (const el of document.querySelectorAll('aside.notes, aside.speaker-notes, .speaker-notes, [data-speaker-notes]')) {
+    const attr = el.getAttribute('data-speaker-notes');
+    if (attr && attr.trim()) { paras.push(...clean(attr)); continue; }
+    const blocks = el.querySelectorAll('p, li');
+    if (blocks.length) blocks.forEach(b => { const t = b.textContent.replace(/\s+/g, ' ').trim(); if (t) paras.push(t); });
+    else paras.push(...clean(el.textContent || ''));
+  }
+  const tw = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT);
+  let c;
+  while ((c = tw.nextNode())) {
+    const m = c.nodeValue.match(/^\s*(?:speaker[\s-]?)?notes\s*:\s*([\s\S]*)$/i);
+    if (m) paras.push(...clean(m[1]));
+  }
+  return paras;
 }
 """
 
@@ -497,15 +784,32 @@ def extract(page, html_path, assets_dir, name, native_charts=False):
         raise RuntimeError(f"{html_path}: {ir['error']}")
 
     for node in ir['nodes']:
-        if node.get('bgSwallowsContent'):
-            preview = node.get('swallowedText', '')
-            print(f"  warn: <{node['tag']}> class=\"{node['cls']}\" has a background-image "
-                  f"AND descendant text (\"{preview}\") — that content will be baked into the "
-                  f"raster screenshot instead of extracted as native shapes. Move the "
-                  f"background pattern to a sibling overlay div (position:absolute, "
-                  f"pointer-events:none) instead of nesting content inside it — see "
-                  f"pptx-export SKILL.md, \"Authoring trap: rasterized parents swallow "
-                  f"children\".")
+        if node.get('bgOnly'):
+            print(f"  note: <{node['tag']}> class=\"{node['cls']}\" — its background-image is "
+                  f"exported as a picture BEHIND its content; the text and shapes on it stay "
+                  f"editable (pptx-export SKILL.md, \"Background images under content\")")
+
+    # A box gradient painted with a custom background-size/-position shows only its
+    # slice of a larger gradient image (one ramp running across three header bars).
+    # PowerPoint restarts the gradient in every shape, so cut each box's own slice.
+    for node in ir['nodes']:
+        lay = node.get('gradientLayout')
+        if node['kind'] != 'box' or not node.get('gradient') or not lay:
+            continue
+        g = node['gradient']
+        stops = [(s_['pos'] / 100.0, s_['color'], float(s_.get('alpha', 1.0) if s_.get('alpha') is not None else 1.0))
+                 for s_ in g['stops']]
+        win = css_gradient_window(g['angle'], stops, lay['w'], lay['h'],
+                                  lay['size'], lay['position'], lay['repeat'])
+        if win is None:
+            print(f"  warn: gradient box at {node['rect']} uses background-size "
+                  f"{lay['size']!r} / position {lay['position']!r} this exporter cannot "
+                  f"slice — exported with the full gradient per shape")
+            continue
+        if [(round(p, 4), c) for p, c, _ in win] != [(round(p, 4), c) for p, c, _ in stops]:
+            node['gradient'] = {'angle': g['angle'],
+                                'stops': [{'color': c, 'pos': round(p * 100, 3), 'alpha': a} for p, c, a in win],
+                                'windowOf': g['stops']}
 
     # Opt-in native charts: scrape live ECharts instances; a raster node whose rect sits
     # inside a chart container becomes a 'chart' node (real editable PPTX chart). On any
@@ -542,6 +846,8 @@ def extract(page, html_path, assets_dir, name, native_charts=False):
         try:
             page.evaluate(ISOLATE_JS, node['id'])
             page.evaluate(CLEAR_ANCESTOR_BG_JS, node['id'])
+            if node.get('bgOnly'):
+                page.evaluate(HIDE_CONTENT_JS, node['id'])
             el.screenshot(path=png, omit_background=True)
             node['asset'] = os.path.abspath(png)
         except Exception as e:  # zero-size after clip etc. — drop the node
@@ -556,6 +862,18 @@ def extract(page, html_path, assets_dir, name, native_charts=False):
                 with open(svg_path, 'w', encoding='utf-8') as f:
                     f.write(svg_markup)
                 node['asset_svg'] = os.path.abspath(svg_path)
+        elif node.get('imgSvg') and node.get('asset'):
+            text = img_svg_text(node['imgSvg'])
+            svg_markup = text and page.evaluate(INLINE_IMG_SVG_JS, [node['id'], text])
+            if svg_markup:
+                svg_path = os.path.join(assets_dir, f"{name}-r{node['id']}.svg")
+                with open(svg_path, 'w', encoding='utf-8') as f:
+                    f.write(svg_markup)
+                node['asset_svg'] = os.path.abspath(svg_path)
+            else:
+                print(f"  note: <img src=\"{os.path.basename(urlparse(node['imgSvg']).path)}\"> "
+                      f"stays a picture (unreadable SVG or a CSS filter other than a "
+                      f"brightness(0)[ invert(1)] recolour)", file=sys.stderr)
 
     # Slide background gradient (covers, dividers): full-slide screenshot as base layer.
     if ir['slide'].get('bgImage'):
@@ -563,6 +881,9 @@ def extract(page, html_path, assets_dir, name, native_charts=False):
         page.locator('#slide').screenshot(path=png)
         ir['slide']['bgAsset'] = os.path.abspath(png)
 
+    notes = page.evaluate(NOTES_JS)
+    if notes:
+        ir['notes'] = notes
     ir['source'] = os.path.abspath(html_path)
     return ir
 

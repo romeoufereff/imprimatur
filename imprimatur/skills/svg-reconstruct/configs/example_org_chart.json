@@ -106,7 +106,7 @@
       "role": "K. Park",
       "parent": "cto",
       "color": "role:tint",
-      "text_color": "#333"
+      "text_color": "#3D3D3D"
     },
     {
       "id": "eng2",
@@ -118,7 +118,7 @@
       "role": "S. Roy",
       "parent": "cto",
       "color": "role:tint",
-      "text_color": "#333"
+      "text_color": "#3D3D3D"
     }
   ]
 }

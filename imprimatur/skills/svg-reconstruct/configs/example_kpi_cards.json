@@ -2,7 +2,7 @@
   "type": "kpi_cards",
   "width": 1100,
   "height": 260,
-  "background": "#F5F5F5",
+  "background": "#F6F6F6",
   "origin": [
     40,
     50
@@ -77,7 +77,7 @@
       "icon": "gauge",
       "delta": "+8%",
       "color": "#FFFFFF",
-      "text_color": "#333"
+      "text_color": "#3D3D3D"
     }
   ]
 }

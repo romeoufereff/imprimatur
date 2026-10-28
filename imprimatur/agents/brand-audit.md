@@ -19,7 +19,7 @@ prompt. Use those absolute paths everywhere; never search the filesystem.
 ## Boot
 
 ```bash
-python3 "$PLUGIN/scripts/pack_brief.py"      # token prefix, palette roles, type floors, weights, footer label, logo spec, eyebrow spec, gradient rule
+python3 "$PLUGIN/scripts/pack_brief.py" --no-templates   # token prefix, palette roles, type floors, weights, footer label, logo spec, eyebrow spec, gradient rule (the template index is the planner's, not yours)
 cat "$DECK/deck-brief.md"                    # audience (acronym tolerance), anti-references
 cat "$DECK/design-decisions.md"              # locked accent + template per slide
 ```
@@ -39,7 +39,15 @@ Tailwind default-class ban, weight/size floors, `data-template` against the pack
 `templates/`, footer marker, head identical to its template's), contrast (real WCAG ratios
 from the render, **including sampled ratios for text over gradients and images** —
 `gradient_contrast` in the JSON), **logo geometry** (`logo` in the JSON: corner, height and
-fill against the pack's `logo` spec, when the pack declares one), overflow + collision,
+fill against the pack's `logo` spec, when the pack declares one; on a deck whose
+`deck-state.json` declares `cobrand`, the lockup too — `cobrand` / `cobrand_deck` in the
+JSON: both marks, order, gap, size, shared centre, bottom offset, white-on-white), overflow + collision
+(text over a logo included), SVG sizing (`svg_sizing`: squashed SVGs, SVG text rendered
+below the font floor), diagram geometry (`diagram`: text leaving its box, connectors through
+text, arrow tips buried or short, connector stroke < 3:1, accent stripes (a left bar or a
+coloured top stripe over a card), cards in one row ending at different heights — and,
+when the pack sets `rules.enforceDiagramVocabulary`, more than the allowed panel styles or
+tinted panels and off-role connector colours),
 paint on visual slides. **Do not run `validate.py`, `check_contrast.py`, `check_overflow.py`
 or `check_paint.py` separately, do not write your own measurement scripts, and do not re-run
 `qa.py` per slide** — the designer chunks already passed it, the orchestrator ran it once
@@ -55,6 +63,8 @@ with line numbers; never `Read` a full slide file — the head is identical boil
 |---|---|---|
 | **Eyebrow format** | ALL CAPS, `font-bold`, the pack's eyebrow size + tracking tokens (or their literal equivalents), the `muted` role. `validate.py` sees the classes; you check they are used as an eyebrow and not as body copy | line + missing/wrong class |
 | **Acronym expansion** | Expanded or explained on first use ("SAP BW (the legacy warehouse)"). Heuristic: capital sequences; judge against the audience in `deck-brief.md` — an executive room needs more expansion than a technical one | first-use line + suggested expansion |
+| **Card vocabulary** | Cards, panels and bands are built like the pack's card templates (find them with `pack_brief.py`): same fill, border, radius, padding; no stripes or shadows the templates do not have. `vocabulary.panels` in `qa.py`'s JSON lists every panel construction on the slide; compare each with the template's. A consistent but foreign card style is a FAIL (the 2026-10-26 stripe cards passed two critique rounds this way). `vocabulary.cramped_text` lists text within 8 stage px of a rounded card's edge | slide + panel + the template it should match |
+| **Accent meaning** | `qa.py`'s `vocabulary.decision_colour` lists every element painted in the decision colour (`diagram.decisionRole`, default `accent`). Each one must be a place where the deck's legend says that colour applies (house rule: a person decides). Not a script: the script finds the paint, you check the meaning | slide + element + what it means there |
 | **Logo / gradient contrast — only when the pack declares no spec** | If `qa.py`'s JSON carries `"logo": null` (pack has no `logo` block) or a `gradient_contrast` entry marked `unsampled`, judge that row from the body reading; render at most **2 slides per deck** (`qa.py --files <slide> --render /tmp/NN.png`) and only where the body reading is genuinely ambiguous | line + expected value |
 
 Plus any **content check the orchestrator named** in your prompt — typically traceability

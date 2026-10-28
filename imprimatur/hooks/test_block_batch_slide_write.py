@@ -97,6 +97,15 @@ CASES = [
     (ALLOW, "assemble_deck.py",
      'python3 scripts/assemble_deck.py --deck-dir "/decks/acme"'),
 
+    # 1.5.0 deck-motion: choreograph.py rewrites every slide's <head> in one sanctioned
+    # pass (§7b); check_motion.py reads. Both ALLOW even with a slide filename on the line.
+    (ALLOW, "choreograph.py whole-deck injection",
+     'python3 "$PLUGIN/scripts/choreograph.py" --deck-dir "/decks/acme"'),
+    (ALLOW, "choreograph.py on touched slides",
+     'python3 scripts/choreograph.py --deck-dir "/decks/acme" --files 03-problem.html 07-risks.html'),
+    (ALLOW, "check_motion.py on slides",
+     'python3 scripts/check_motion.py /decks/acme/03-problem.html --json'),
+
     # WP8: archiving stale/orphan slides is sanctioned, even though the archived
     # filename still matches the slide pattern (so it would otherwise trip the
     # cp/mv WRITE_PATTERNS rule below).

@@ -31,8 +31,10 @@ a sub-skill errors, never at pre-flight.
 ## Where things are
 
 - **`{PLUGIN}`** — this plugin's directory (contains `.claude-plugin/`); `${CLAUDE_PLUGIN_ROOT}` to hooks.
-- **`{PACK}`** — the active design-system pack: `{PLUGIN}/../imprimatur-design-system` unless
-  `DECK_DESIGN_SYSTEM` points elsewhere.
+- **`{PACK}`** — the active design-system pack, resolved by `ds_config.py` as: the deck's
+  own `deck-state.json` → `design_system` (set at 4a) · else `$DECK_DESIGN_SYSTEM` · else
+  `{PLUGIN}/../imprimatur-design-system`. Pass `--deck-dir {DECK}` to `ds_config.py --header`
+  and the header names the deck's pack.
 - **`{DECK}`** — the deck folder the user chose at intake (never the plugin folder).
 
 ```bash
@@ -106,15 +108,19 @@ Detail: `references/phase-1-intake.md`. Ask, in order, only what you do not have
 **audience** (executive / mixed / technical) · **outcome** (pitch / status update /
 capability brief / Executive Readout / proposal / case study) · **length** (7–15) ·
 **context** (client, project, role, constraint) · **must-haves** (3–6) ·
-**anti-references** (optional). Do not proceed on a vague brief.
+**anti-references** (optional) · **motion** (animate the slides? yes → transition
+`crossfade`/`push`/`zoom-through` + `steps`/`auto`; no → static; ask only if the pack
+declares a `motion` block). Do not proceed on a vague brief.
 
 - **Sources** (`.pdf` / `.docx` / `.pptx` / `.vtt`): spawn an `Explore` subagent to write
   `{DECK}/Input/source-notes.md` (facts with citations, ≤ 6 KB). You never read the sources.
 - **Taste dials**: default density from audience (executive → sparse, mixed → balanced,
   technical → dense) and variance from outcome (pitch / capability / readout → high, status
   → medium, internal → low); state them in one line and invite a change.
-- **Write `deck-brief.md`** (from `templates/deck-brief-template.md`) and an empty
-  `design-decisions.md` (from `templates/design-decisions-template.md`) into `{DECK}`.
+- **Write `deck-brief.md`** (from `templates/deck-brief-template.md`, incl. the `Motion:`
+  line) and an empty `design-decisions.md` (from `templates/design-decisions-template.md`)
+  into `{DECK}`; set `deck-state.json` → `"motion": {"enabled": …}` at the same time. A *no*
+  here is what keeps §7b free: nothing downstream mentions motion again.
 - **Fast-track** only when **all three** hold — internal AND variance `low` AND ≤ 7 slides:
   intake + skeleton in one approval, and §9 may skip the harness **only** with
   `"review": { "fast_track": true }` recorded in `deck-state.json`. Gates never shrink.
@@ -142,7 +148,14 @@ Detail, the spawn prompt, and the reasoning: `references/phase-4-design.md`.
 `references/content-shape-map.md` → one `planned` row per slide in `design-decisions.md`
 (`| # | File | Template | Visual | Focal | Status |`) + `- accent: <role>` under
 `Locked choices` → `python3 {PLUGIN}/scripts/plan_check.py --deck-dir {DECK}` until PASS →
-seed `deck-state.json` with one `pending` entry per slide.
+seed `deck-state.json` with one `pending` entry per slide **and `"design_system": "{PACK}"`**
+(the deck's own pack declaration — every hook and script resolves the pack from it, ahead
+of `$DECK_DESIGN_SYSTEM`; `references/state-tracking.md`). **Client deck with a co-brand
+lockup?** Copy the client's logo into `{DECK}/assets/` and declare it once in the same file —
+`"cobrand": {"logo": "assets/<client>.png", "position": "left"}` — before any slide exists:
+`new_slide.py` puts it left of the pack logo on every copy (cover vs content sizes from the
+template role, white on a white logo) and `qa.py` FAILs a slide whose lockup is missing,
+moved or recoloured. Never paste a logo into a slide or ask a designer to.
 
 **4b · Archive stale slides.** `NN-*.html` not in `deck-state.json` → tell the user once,
 move to `{DECK}/_archive/<date>/`. Scripts take their slide list from `deck-state.json`.
@@ -156,8 +169,8 @@ its last slide, **one** `qa.py --deck-dir {DECK} --files <its slides> --json`; a
 `SubagentStop` hook blocks its report while any of its slides fails.
 
 **4d · Verify from files, not reports.** When all chunks land:
-`log_slide.py --deck-dir {DECK} --summary` (this is the batch report) + a `deck-state.json`
-vs disk diff in one Bash call + `qa.py --deck-dir {DECK} --json` for the whole deck (also
+`log_slide.py --deck-dir {DECK} --summary` (the whole file, once — each chunk reported only
+its own `--summary --slides A-B`) + a `deck-state.json` vs disk diff in one Bash call + `qa.py --deck-dir {DECK} --json` for the whole deck (also
 where contrast hard-FAILs surface). A row a report claims but the file lacks → that chunk is
 not done; its agent fixes the log. Any FAIL → revision before the audits.
 
@@ -215,10 +228,45 @@ against the files on disk. Never let a designer build the viewer. Adding/removin
 later touches file + state + numbering + re-assembly + `qa.py` — checklist in
 `references/phase-7-8-assembly-preview.md`; folder layout in `references/deck-assembly.md`.
 
+## 7b · Choreography — only if `deck-state.json` → `motion.enabled`
+
+Detail: `references/motion.md`. A deck that said **no** at §1 skips this section entirely —
+do not mention motion again. Otherwise, once, after assembly and after the audits are clear
+(motion must never mask a static defect):
+
+```bash
+python3 {PLUGIN}/scripts/choreograph.py --deck-dir {DECK}            # reads structure, injects spec + runtime
+python3 {PLUGIN}/scripts/choreograph.py --deck-dir {DECK} --summary  # ≤ 3 KB: one line per slide
+python3 {PLUGIN}/scripts/motion_harness.py {DECK}                      # every element, every frame, vs the resting slide — must exit 0
+```
+
+The harness is the gate: a finding names the element and the moment (MOVES AFTER LANDING, LANDS
+AT THE END, BEFORE ITS CONNECTOR …) and writes a contact sheet under `{DECK}/motion/harness/`.
+A finding on an auto slide is an engine or override matter (`data-motion`, a slide override); a
+finding on a `SCENE=` slide goes back to the motion director in one `SendMessage` with the
+harness lines. Never ship a motion deck with findings open.
+
+The script reads each slide's structure and derives the construction order itself (eyebrow
+→ title → cards staggered → numbers count → the brief's `Emphasis:` last); you read the
+summary and override only when a line is wrong (`references/motion.md` § Overrides). Never
+hand-write a motion spec yourself. **If the deck has slides with `Visual: bespoke | pipeline |
+chart`, spawn `motion-director` once** (header block + `DECK` + the list of those slides,
+≤ 2 KB): it writes `motion/director.json` — story-driven scenes for exactly those slides — and
+reports one line per scene; then re-run `choreograph.py --deck-dir {DECK}` so the scenes merge
+in. Plain template slides keep the auto plan. §8's `qa.py` now also proves the
+end state equals the static slide pixel-for-pixel; a later body edit makes that slide's spec
+STALE (`qa.py` FAIL) → re-run with `--files <touched>`. PDF/PPTX are unaffected either way.
+
 ## 8 · HTML preview
 
 `qa.py --deck-dir {DECK} --json` once (one browser launch) + `python3 -m http.server 8934
 --directory "{DECK}/"` → hand over `http://localhost:8934/index.html` with the summary line.
+**If the deck has motion, spawn `motion-crit` once here** (read-only; header block + `DECK`,
+≤ 1 KB), in the background while you serve the preview: it freezes frames of five slides and
+scores the motion on a fixed rubric (hook, one hero per frame, readability during the build,
+stillness before the point, deck-wide variety, cost, the one-sentence test on directed
+scenes). Apply its fixes the same way as an auditor's: an override, a `data-motion` attribute,
+or one `SendMessage` to the motion director for a failing scene — never a hand-written spec.
 No screenshots of your own. **Do not ask "does this look good?"** — that belongs to §9;
 say *"next I'll open the review page so you can mark up anything you want changed."*
 
@@ -269,8 +317,9 @@ back.
 | Design plan | you | outline → locked `design-decisions.md`, `plan_check.py` PASS | shape has no template and no recipe |
 | Design | deck-designer × chunks (parallel) | plan + briefs → slides, `log_slide.py --summary` | density overflow → narrative |
 | Audit | brand-audit ∥ design-crit | slides → two compact reports | conflicting feedback |
+| Motion crit (motion decks) | motion-crit | frozen frames → ≤ 15-line scorecard | a critic that is also the builder |
 | Revision | deck-designer (batched) | merged fix list → revised slides, script re-check | 3rd cycle |
-| Assembly / Preview | you | `assemble_deck.py`, `qa.py`, server | `qa.py` FAIL → revision |
+| Assembly / Preview | you | `assemble_deck.py`, (`choreograph.py` if motion), `qa.py`, server | `qa.py` FAIL → revision |
 | Review | deck-review + user | harness → `annotations.json` → refined slides | comment conflicts with brand/brief → decline with reason |
 | Export | pdf-export / pptx-export | review-clean deck → PDF / PPTX | any annotation open |
 

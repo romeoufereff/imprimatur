@@ -9,6 +9,11 @@ These run today and are part of `scripts/validate_all.sh`.
 ```bash
 scripts/run_evals.py audit                      # recall + precision on the pack's seeded fixtures
 scripts/run_evals.py designer <dir-of-slides>   # qa.py + per-slide assertions
+scripts/run_evals.py cobrand                    # co-brand lockup: applied by new_slide.py, seeded breaks FAIL (stage-cobrand/)
+scripts/run_evals.py bookkeeping                # log_slide.py --deviation keeps one line per slide (stage-bookkeeping/)
+scripts/run_evals.py export                     # PPTX: inline runs, sup/sub, text over bg layers (pptx-export/tests/fixtures/)
+scripts/run_evals.py contrast                   # contrast over sibling gradient / solid layers (same bg-layers fixture)
+scripts/run_evals.py diagram                    # check_diagram.py + the QA freeze: seeded defects FAIL, look-alikes pass (stage-diagram/)
 scripts/run_evals.py narrative <briefs.md>      # SLIDE BRIEF field presence + visual-slide count
 scripts/run_evals.py setup <id> <dir>           # stage one eval's isolated working folder
 ```

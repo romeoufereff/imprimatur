@@ -21,12 +21,12 @@ def build(config_path, out_svg_path=None):
             gy = y_of(val)
             body.append(f'<line x1="{p["x"]}" y1="{gy:.1f}" x2="{p["x"]+p["w"]}" '
                         f'y2="{gy:.1f}" stroke="{presets.RULE}"/>')
-            body.append(text.label(p["x"]-12, gy, f"{val:g}", 13, color="#666",
+            body.append(text.label(p["x"]-12, gy, f"{val:g}", 13, color=presets.MUTED,
                         weight="400", anchor="end"))
 
     for i, lbl in enumerate(xlabels):
         body.append(text.label(x_of(i), p["y"]+p["h"]+22, lbl, 13,
-                    color="#666", weight="400"))
+                    color=presets.MUTED, weight="400"))
 
     for si, s in enumerate(cfg["series"]):
         pts = [(x_of(i), y_of(v)) for i, v in enumerate(s["points"])]
@@ -51,16 +51,16 @@ def build(config_path, out_svg_path=None):
                             f'fill="#fff" stroke="{s["color"]}" stroke-width="2.5"/>')
 
     body.append(f'<line x1="{p["x"]}" y1="{p["y"]+p["h"]}" x2="{p["x"]+p["w"]}" '
-                f'y2="{p["y"]+p["h"]}" stroke="#333"/>')
+                f'y2="{p["y"]+p["h"]}" stroke="{presets.BODY}"/>')
     body.append(f'<line x1="{p["x"]}" y1="{p["y"]}" x2="{p["x"]}" '
-                f'y2="{p["y"]+p["h"]}" stroke="#333"/>')
+                f'y2="{p["y"]+p["h"]}" stroke="{presets.BODY}"/>')
 
     if len(cfg["series"]) > 1:
         lx = p["x"] + 10
         for s in cfg["series"]:
             body.append(f'<rect x="{lx}" y="{p["y"]-28}" width="14" height="14" '
                         f'rx="3" fill="{s["color"]}"/>')
-            body.append(text.label(lx+20, p["y"]-21, s["name"], 13, color="#333",
+            body.append(text.label(lx+20, p["y"]-21, s["name"], 13, color=presets.BODY,
                         weight="600", anchor="start"))
             lx += 30 + len(s["name"]) * 8
 

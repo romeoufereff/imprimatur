@@ -28,9 +28,9 @@ def build(config_path, out_svg_path=None):
     body.append(f'<path d="{g.arc_segment(cx, cy, ri, ro, a0, va, corner=(ro-ri)/2)}" '
                 f'fill="{fill}"/>')
     body.append(text.label(cx, cy, cfg.get("display", f"{val:g}"),
-                cfg.get("value_size", 48), color="#333", weight="800"))
+                cfg.get("value_size", 48), color=presets.BODY, weight="800"))
     if cfg.get("subtitle"):
-        body.append(text.label(cx, cy+40, cfg["subtitle"], 15, color="#777", weight="500"))
+        body.append(text.label(cx, cy+40, cfg["subtitle"], 15, color=presets.MUTED, weight="500"))
 
     doc = canvas.svg(cfg["width"], cfg["height"], "".join(defs), "".join(body),
                      bg=cfg.get("background", "#ffffff"))

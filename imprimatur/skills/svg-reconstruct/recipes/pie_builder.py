@@ -44,7 +44,7 @@ def build(config_path, out_svg_path=None):
                 lx, ly = g.polar(ccx, ccy, R+30, mid)
                 anchor = "start" if math.cos(math.radians(mid-90)) >= 0 else "end"
                 body.append(text.label(lx, ly, s["label"]+pct, 15,
-                            color="#333", weight="600", anchor=anchor))
+                            color=presets.BODY, weight="600", anchor=anchor))
         ang = end
 
     doc = canvas.svg(cfg["width"], cfg["height"], "".join(defs), "".join(body),

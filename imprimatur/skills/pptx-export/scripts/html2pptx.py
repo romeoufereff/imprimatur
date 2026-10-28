@@ -24,7 +24,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract_ir import extract  # noqa: E402
+from extract_ir import extract, NOTES_JS  # noqa: E402
 from build_pptx import build, SLIDE_W, SLIDE_H  # noqa: E402
 
 from playwright.sync_api import sync_playwright  # noqa: E402
@@ -68,6 +68,9 @@ def main():
                 page.locator('#slide').screenshot(path=png)
                 ir = {'source': path, 'slide': {'bg': '#FFFFFF', 'bgImage': True,
                                                 'bgAsset': os.path.abspath(png)}, 'nodes': []}
+                notes = page.evaluate(NOTES_JS)
+                if notes:
+                    ir['notes'] = notes
             else:
                 ir = extract(page, path, assets, name, native_charts=args.native_charts)
             out = os.path.join(ir_dir, f"{name}.json")
@@ -78,7 +81,8 @@ def main():
             kinds = {}
             for n in ir['nodes']:
                 kinds[n['kind']] = kinds.get(n['kind'], 0) + 1
-            print(f"extracted {name}: {kinds or 'raster-fallback'}")
+            note = f" + {len(ir['notes'])} note paragraph(s)" if ir.get('notes') else ''
+            print(f"extracted {name}: {kinds or 'raster-fallback'}{note}")
         browser.close()
 
     n = build(ir_paths, args.output, svg_mode='blip' if args.svg_blip else 'shapes')

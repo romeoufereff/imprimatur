@@ -22,7 +22,7 @@ def build(config_path, out_svg_path=None):
         body.append(f'<line x1="{cx}" y1="{cy}" x2="{ex:.1f}" y2="{ey:.1f}" '
                     f'stroke="{presets.RULE}"/>')
         lx, ly = g.polar(cx, cy, R+24, 360*i/n)
-        body.append(text.label(lx, ly, ax, 12, color="#555", weight="600"))
+        body.append(text.label(lx, ly, ax, 12, color=presets.MUTED, weight="600"))
 
     for s in cfg["series"]:
         pts = []

@@ -61,36 +61,37 @@ the host template's content area per its handoff section.
 4. **Type inside the SVG** — primary labels at the pack's `body`/`subhead` step in bold,
    sub-labels at its `label` step in the `muted-soft` role; viewBox sized to content;
    `style="width:100%;flex:1"` (full rules: `design-craft.md` § SVG visuals).
-5. **It is the focal point** — no competing cards beside it. Each labelled node counts as one
+5. **Connectors** — one colour for every solid connector (the pack's `primary` role, or the
+   `diagram.connectorRole` it names), one arrowhead, 1.5–2 px; an exception or fallback path
+   is the same line dashed in the `muted` role, never a second hue. Each arrow tip lands on its
+   node's edge (≤ ~4 px either side on the 1920 canvas): `qa.py` FAILs a tip buried in its node
+   or floating short of it (`arrow tip buried` / `arrow tip floats`), a line whose stroke shows
+   through a label (`connector through text` — route it around, or put the label on a solid
+   backing painted above the line), and a connector stroke under 3:1 against what is behind
+   it. An arrow that deliberately points out of the diagram (an axis, "goes out") is fine as
+   long as no node sits just ahead of it. Draw boxes first and connectors last (paint order),
+   so a masked route is a choice, not an accident.
+6. **It is the focal point** — no competing cards beside it. Each labelled node counts as one
    atomic item toward the DENSITY budget.
-6. **Never ship round 1.** After the chunk's batch `qa.py`, render this slide
+7. **Never ship round 1. After the chunk's batch `qa.py`, render this slide
    (`qa.py --files <slide> --render /tmp/NN.png`, 960×540 by default) and look at it: flat
    fills, a hub that does not read as the focal point, labels touching shape edges are things
    only a look catches. This is the one place a PNG read is part of the designer loop.
-7. **Log it** — `log_slide.py … --visual bespoke --focal "<metaphor in ≤ 12 words>"`; auditors
+8. **Log it** — `log_slide.py … --visual bespoke --focal "<metaphor in ≤ 12 words>"`; auditors
    judge the SVG against the pack's SVG rules, not against template mapping.
 
-## Never nest convertible content inside a decorative-background div
+## Decorative backgrounds under content
 
-If the deck also gets exported to PPTX (`pptx-export`), any HTML element that needs a
-`background-image` (a pattern, a photo, a layered/radial gradient — the kind of decoration
-a bespoke lanes/pipeline/flow layout tends to reach for as a grid-line or texture backdrop)
-gets rasterized whole and **its children are baked into that screenshot instead of being
-extracted as their own shapes**. A gradient pill badge, a text label, a card — anything with
-real content — placed *inside* such a div silently becomes part of the picture, even though
-it would otherwise export as an editable shape or textbox.
-
-This shipped a real bug: a client deck's parallel-lanes slide put gradient "pill" badges
-(their own text included) inside a div whose background-image was a grid-line pattern; the
-pills vanished into that raster and only turned up as a flattened picture in PowerPoint,
-nothing looked wrong in the browser or the review harness.
-
-**Rule: a decorative background pattern is always a sibling overlay
-(`position:absolute; inset:0; pointer-events:none;`), never the parent of text, badges, or
-cards.** Put the pattern in its own div stacked behind (or above, with `pointer-events:none`)
-the real content — never wrap the content in it. `extract_ir.py` prints a `warn:` line for
-any element it catches with a background-image AND non-trivial descendant text — treat that
-like a svg2shapes fallback warning and restructure before calling the slide done.
+A `background-image` the exporter cannot make a native fill (a grid-line pattern, a photo,
+a layered/radial gradient — the backdrop a bespoke lanes/pipeline/flow layout tends to
+reach for) exports as a picture. Until 1.6.5 a div carrying one was screenshotted whole,
+so gradient pill badges nested in a grid-line lane (a client parallel-lanes slide) and a
+gantt track's bars and labels (2026-10-23) shipped as flattened pictures. Now the
+background alone is the picture and the content on it stays editable shapes (pptx-export
+SKILL.md, "Background images under content"), so nesting no longer costs editability. A
+sibling overlay (`position:absolute; inset:0; pointer-events:none;`) is still the cleaner
+structure, and the contrast checks read text over one correctly — no solid "base colour"
+on the parent is needed to quiet them.
 
 ## Raster images (screenshots, photos)
 

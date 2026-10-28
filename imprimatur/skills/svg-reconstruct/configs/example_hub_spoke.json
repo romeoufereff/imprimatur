@@ -10,7 +10,7 @@
   "spoke_radius": 300,
   "spoke_node_radius": 64,
   "rotation": 0,
-  "line_color": "#D0D0D0",
+  "line_color": "#D8DEE7",
   "hub": {
     "label": "Platform",
     "radius": 92,

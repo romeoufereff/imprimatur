@@ -13,7 +13,7 @@ against a **design-system pack**, and nothing exports while a check is failing.
 
 | | |
 |---|---|
-| **`imprimatur/`** | The engine. One orchestrator skill, four agents for the judgment-bearing stages, five capability skills, four hooks, and the mechanical checks. Knows no brand values. |
+| **`imprimatur/`** | The engine. One orchestrator skill, four agents for the judgment-bearing stages, five capability skills, the hooks, the mechanical checks, and the opt-in `deck-motion` module (slides construct themselves on open, transitions between slides — HTML viewer only; PDF/PPTX untouched). Knows no brand values, including how a brand moves. |
 | **`imprimatur-design-system/`** | **ACME Deck System** — a real 25-template pack (mono steel-blue accent, Barlow / Barlow Condensed, cinema-scale type), built with Claude Design and MIT-safe: no client brand involved. Ships so the engine is installable and runnable out of the box; swap it for your own brand. |
 | **`packs/`** | Two more ready-made packs to try or swap in: **Game Studio** (vibrant 5-accent rotation, Archivo / IBM Plex Sans) and **Minimalist / Outline** (warm neutral, single accent reserved for active-state marking only, 1280×720 canvas). |
 

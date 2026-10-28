@@ -60,9 +60,25 @@ def collect_slides(deck_dir: Path) -> list[dict]:
         slides.append({
             "file": p.name,
             "index": i,
-            "html": p.read_text(encoding="utf-8", errors="replace"),
+            "html": freeze_motion(p.read_text(encoding="utf-8", errors="replace")),
         })
     return slides
+
+
+STATIC_TAG = '<script id="__imprimatur_static">window.__IMPRIMATUR_STATIC=1</script>'
+
+
+def freeze_motion(html: str) -> str:
+    """A choreographed slide (deck-motion, §7b) must review in its END state: comments and
+    direct edits target the finished picture, not a frame of the entrance. The runtime treats
+    this flag like navigator.webdriver and does nothing; the ▶ button strips the tag again
+    for a one-off replay inside the harness."""
+    if "imprimatur-motion-spec" not in html:
+        return html
+    m = re.search(r"<head[^>]*>", html, re.IGNORECASE)
+    if not m:
+        return html
+    return html[:m.end()] + STATIC_TAG + html[m.end():]
 
 
 def load_vocabulary() -> dict:
@@ -364,6 +380,7 @@ TEMPLATE = r"""<!DOCTYPE html>
       <button id="prev">← Prev</button>
       <span class="counter" id="counter">1 / 1</span>
       <button id="next">Next →</button>
+      <button id="playMotion" title="Replay this slide's entrance (deck-motion); the slide returns to its end state afterwards" style="display:none;">▶ Play</button>
     </div>
     <button id="slideComment">Comment on whole slide</button>
     <span class="pill" id="saveState" style="display:none;">✓ Saved</span>
@@ -490,9 +507,28 @@ TEMPLATE = r"""<!DOCTYPE html>
     const s = DATA.slides[cur];
     frame.srcdoc = s.html;
     counter.textContent = (cur + 1) + " / " + DATA.slides.length;
+    const pb = document.getElementById("playMotion");
+    if (pb) pb.style.display = s.html.indexOf("imprimatur-motion-spec") >= 0 ? "" : "none";
     closeEditor();
   }
   frame.addEventListener("load", onFrameLoad);
+  // deck-motion: slides are frozen in their end state for review; ▶ replays one entrance.
+  (function () {
+    const pb = document.getElementById("playMotion");
+    if (!pb) return;
+    pb.addEventListener("click", function () {
+      const s = DATA.slides[cur];
+      const live = s.html.replace(/<script id="__imprimatur_static">[^<]*<\/script>/, "");
+      const once = function () {
+        frame.removeEventListener("load", once);
+        setTimeout(function () {
+          try { frame.contentWindow.postMessage({ ns: "imprimatur-motion", type: "play" }, "*"); } catch (e) {}
+        }, 60);
+      };
+      frame.addEventListener("load", once);
+      frame.srcdoc = live;
+    });
+  })();
 
   function onFrameLoad() {
     const doc = frame.contentDocument;

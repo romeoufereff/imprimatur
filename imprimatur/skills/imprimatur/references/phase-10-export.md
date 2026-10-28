@@ -58,7 +58,9 @@ python3 "{PLUGIN}/skills/pptx-export/scripts/html2pptx.py" \
 
 Text stays editable at exact positions with the browser's line breaks; cards are shapes;
 SVG diagrams become native grouped shapes; gradient covers are native fills. Flags:
-`--native-charts`, `--svg-blip`, `--raster-fallback`. Verify with the checklist in
+`--native-charts`, `--svg-blip`, `--raster-fallback`. Speaker notes travel only when the
+slide carries them explicitly (`<aside class="notes">` or `<!-- notes: … -->` — see
+`pptx-export/SKILL.md`); plain HTML comments are never exported. Verify with the checklist in
 `pptx-export/SKILL.md` (content-MAE loop + slide count); the final judgment is the user
 opening it in PowerPoint. Tell them: machines without the pack's font family substitute
 fonts (layout holds, glyphs differ); the PDF remains the fidelity reference when both exist.

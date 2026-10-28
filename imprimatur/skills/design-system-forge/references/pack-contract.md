@@ -113,6 +113,7 @@ and invent data to satisfy it; the pack then enforces a fiction.
 | `enforceGradientCanon` | `gradients.canonical`, `gradients.brandHexMarkers` |
 | `banTailwindDefaultPalette`, `banEmoji`, `banStructuralShadows`, `banLeftAccentBars` | nothing — pure bans |
 | `banElementCollisions` | `collisionTolerancePx` |
+| `enforceDiagramVocabulary` | the optional `diagram` block (below); roles `primary`, `muted`, `accent`, `tint` by default |
 | `checkFontUrlsResolve` | a `fonts/` directory with the files — leave **off** unless you ship fonts |
 
 A caution about the palette census: it validates a slide's hexes against the union of the
@@ -135,7 +136,43 @@ inaccessible token harms every deck built afterwards, silently.
 **`viz` order is a decision.** Adjacent series must be distinguishable; lead with the two most
 separable hues rather than copying palette order.
 
-## Structural declarations (optional, both read by the engine when present)
+## Motion (optional — contract 1.1, deck-motion)
+
+```json
+"motion": {
+  "enabled": true,
+  "entranceBudgetMs": 1600, "staggerCapMs": 500, "distancePx": 24,
+  "durationMs": {"fast": 300, "base": 450, "slow": 700},
+  "personality": "corporate", "easing": {"transition": "power2.inOut"},
+  "allowedEffects": ["fade", "fade-up", "fade-left", "grow-y", "grow-x", "draw", "count-up", "pop"],
+  "transition": {"type": "crossfade", "durationMs": 450},
+  "gsapUrl": "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js",
+  "roleSelectors": {"eyebrow": [".text-<prefix>-eyebrow"], "title": ["h1"], "subtitle": ["h1 + p", "h2"],
+                    "kpi": [".text-<prefix>-metric", ".text-<prefix>-stat"],
+                    "bar": ["svg rect[data-chart-bar]"], "arc": ["svg circle[stroke-dasharray]"],
+                    "connector": ["svg path[marker-end]"], "chartBlock": ["#chart", "[data-chart]"],
+                    "never": ["svg[role='img']", "[data-client-logo]", "[data-decor-bleed]", ".bottom-chrome"]},
+  "roleEffects": {"eyebrow": "fade", "title": "fade-up", "card": "fade-up", "list-item": "fade-left",
+                  "kpi": "count-up", "bar": "grow-y", "arc": "draw", "connector": "draw", "emphasis": "pop"},
+  "templateOverrides": {"01-cover": {"budgetMs": 2200, "transition_in": "none"}},
+  "qa": {"maxMae": 0.0, "maxInlineBytes": 4096}
+}
+```
+
+How the brand *moves*. The engine's `choreograph.py` (orchestrator §7b) reads a finished
+slide, classifies regions with `roleSelectors` — the only brand knowledge in the block; the
+engine never guesses which class is an eyebrow — and emits one paused GSAP timeline per slide
+within `entranceBudgetMs`; the deck viewer plays `transition` between slides. `never` must
+cover the logo, the footer strip and decorative washes. The runtime is a no-op under
+Playwright, so the block changes nothing for PDF/PPTX; `qa.py` fails any slide whose animated
+end state is not pixel-identical to the static one (`qa.maxMae`).
+
+`emit_pack.py` writes a calm default derived from the prefix and type-scale names; put a
+`"motion"` object in decisions.json to state the brand's own language, or `"motion": false`
+to ship a pack that cannot animate (then the pipeline never asks the motion question).
+Absent the block the engine behaves exactly as before 1.5.0.
+
+## Structural declarations (optional, read by the engine when present)
 
 - **`templateRoles`** — `{"breather": [stems], "cover": [stems], "closing": [stems]}`.
   `plan_check.py` uses `breather` for the VARIANCE dial's cadence rule (without it the
@@ -145,3 +182,16 @@ separable hues rather than copying palette order.
   `check_logo.py` measures each slide's logo against the template named in its
   `data-template`, so only the selector is declared; heights, corners and fills come from
   the templates themselves. Without this block the check is skipped.
+- **`diagram`** — the diagram vocabulary, by role, read by `check_diagram.py` (in `qa.py`):
+  `{"connectorRole": "primary", "exceptionRole": "muted", "decisionRole": "accent",
+  "tintRole": "tint", "maxPanelStyles": 3, "maxTintPanels": 1}` (these are the defaults;
+  `tintRole` may be a list when the pack has more than one focal tint).
+  The vocabulary is always measured and reported (`vocabulary` in `qa.py --json`: panel
+  styles, tinted panels, solid and dashed connector colours, everything painted in the
+  decision colour); it FAILs only with `rules.enforceDiagramVocabulary: true`. Turn that on
+  once the pack's own diagram templates pass it — `check_diagram.py --vocabulary` with no
+  arguments lists them. The geometry checks in the same script (text leaving its box,
+  connectors through text, arrow tips, connector contrast, uneven card rows, and accent
+  stripes — left bars and top-stripe cards — under `banLeftAccentBars`) need no declaration.
+  `decisionTintRole` (default `surface-accent`) names the card fill that carries the decision
+  colour, so decision cards are listed with the colour's other uses.

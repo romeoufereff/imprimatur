@@ -74,7 +74,8 @@ def main():
 
     try:
         import ds_config
-        pack_root = ds_config.find_root()
+        # Prefer the deck the agent is working in (its state file names the pack).
+        pack_root = ds_config.find_root(deck_dir=payload.get("cwd") or None)
     except Exception:
         pack_root = None
     if not pack_root:

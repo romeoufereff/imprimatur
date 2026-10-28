@@ -102,6 +102,12 @@ stage "no unexplained hexes in engine code" "$PY" "$HERE/check_engine_clean.py"
 echo
 echo "${bold}pack${off}"
 stage "brand rules (templates + snippets + charts)" "$PY" "$HERE/validate.py"
+# The pack's gallery (docs.gallery) is part of the pack when it ships one: it must list
+# every template. A pack without the file is skipped.
+GALLERY="$("$PY" -c "import sys; sys.path.insert(0, '$HERE'); from ds_config import load; ds = load(); print(ds.path(ds.get('docs.gallery', 'gallery.html')))" 2>/dev/null)"
+if [[ -n "$GALLERY" && -f "$GALLERY" ]]; then
+  stage "gallery lists every template" "$PY" "$HERE/build_gallery.py" --check
+fi
 if [[ $FAST -eq 0 ]]; then
   # No mapfile here: macOS ships bash 3.2. Plain globbing, with nullglob so an absent
   # directory yields nothing rather than a literal pattern.
@@ -122,6 +128,24 @@ else
   echo "  ${dim}- browser checks skipped (--fast)${off}"
 fi
 stage "audit eval: recall + precision" "$PY" "$HERE/run_evals.py" audit
+# log_slide.py --deviation (1.6.5): a revision round's --append calls keep one line per slide
+stage "bookkeeping eval: one Deviations line per slide" "$PY" "$HERE/run_evals.py" bookkeeping
+if [[ $FAST -eq 0 ]]; then
+  # Defects qa.py once passed and a reviewer caught: each seeded slide must FAIL naming the
+  # element, its fixed twin must pass. A render check that cannot fail its own repro is not a gate.
+  stage "render eval: seeded FAIL, fixed PASS" "$PY" "$HERE/run_evals.py" render
+  # Co-brand lockup (1.6.1): new_slide.py applies the deck's declared lockup to every copy,
+  # and each seeded break (removed, swapped, broken image, lifted, shrunk, unfiltered) FAILs.
+  stage "cobrand eval: applied on copy, seeded FAILs" "$PY" "$HERE/run_evals.py" cobrand
+  # PPTX export (1.6.5): mig<span>V</span>isor<sup>™</sup> stays one word with a superscript
+  # run; text on a background-image element stays editable over a background-only picture.
+  stage "export eval: inline runs, text over bg layers" "$PY" "$HERE/run_evals.py" export
+  # Contrast over a SIBLING gradient layer is pixel-sampled, not read as white-on-white.
+  stage "contrast eval: sibling background layers" "$PY" "$HERE/run_evals.py" contrast
+  # check_diagram.py (1.7.0): box spill, connectors through text, arrow tips, connector
+  # contrast, accent bars, vocabulary; and the QA freeze beating a deck's !important rule.
+  stage "diagram eval: seeded FAIL, look-alikes + fixed PASS" "$PY" "$HERE/run_evals.py" diagram
+fi
 stage "acceptance: templates pass, fixture fails" \
   "$PY" "$PLUGIN/skills/design-system-forge/scripts/verify_pack.py" \
   --pack "$REPO/imprimatur-design-system" --orchestrator "$PLUGIN"
@@ -138,7 +162,14 @@ stage "large-template read guard" "$PY" "$PLUGIN/hooks/test_block_large_template
 stage "orchestrator lane guard" "$PY" "$PLUGIN/hooks/test_orchestrator_guard.py"
 stage "agent header injection"  "$PY" "$PLUGIN/hooks/test_agent_header.py"
 stage "hook output contracts (from the docs)" "$PY" "$PLUGIN/hooks/test_hook_contracts.py"
+stage "pack resolution from deck-state"  "$PY" "$PLUGIN/hooks/test_ds_config_deck_state.py"
 stage "engine helper scripts smoke" "$PY" "$HERE/test_helpers.py"
+if [[ $FAST -eq 0 ]]; then
+  stage "deck-motion: viewer, choreography, static equivalence" "$PY" "$HERE/test_motion.py"
+else
+  stage "deck-motion (no browser)" "$PY" "$HERE/test_motion.py" --no-browser
+fi
+stage "pptx-export unit tests (svg2shapes, fonts)" env -C "$PLUGIN/skills/pptx-export" "$PY" -m pytest tests/ -q -p no:cacheprovider
 stage "svg-reconstruct unit tests" env -C "$PLUGIN/skills/svg-reconstruct" "$PY" -m pytest tests/ -q
 stage "svg recipes build"       env -C "$PLUGIN/skills/svg-reconstruct" "$PY" -c '
 import sys, glob, json; sys.path.insert(0, ".")

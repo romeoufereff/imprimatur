@@ -20,8 +20,15 @@ rather than guessed — the same "an empty answer is a real answer" principle
 is intentionally NOT summarized here — WP6: read it only when a brief says
 `Visual: bespoke`/`chart`, not on every boot.
 
+`--no-templates` drops the `## Templates` index (≈ 7 KB of a 10 KB brief on a
+92-template pack). The index exists for the PLANNER (phase 4a picks templates and
+rotates breathers); a designer's templates are already locked in the plan and an
+auditor judges values, not template choice — neither needs the list, and both
+re-read their boot on every turn (2026-10-04 measurement: 9,850 B vs the "~2 KB"
+the agent definitions promised).
+
 Usage:
-    pack_brief.py [--design-system PATH]
+    pack_brief.py [--design-system PATH] [--no-templates]
 """
 import argparse
 import glob
@@ -63,6 +70,8 @@ def extract_line(text, prefix):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
     ap.add_argument("--design-system", default=None)
+    ap.add_argument("--no-templates", action="store_true",
+                    help="Omit the ## Templates index (designer / auditor boot — only the planner needs it)")
     args = ap.parse_args()
 
     ds = load(args.design_system)
@@ -141,6 +150,12 @@ def main():
     # -focal/-asymmetric/-compact/-enhanced/-featured variants were invisible to the
     # planner unless it remembered pack_inventory's bare names, and nothing said which
     # templates were breathers — so one breather template took 7 of 9 breather slots.
+    if args.no_templates:
+        out = "\n".join(lines).rstrip()
+        print(out)
+        print(f"\n# ({len(out)} bytes, templates omitted)", file=sys.stderr)
+        return
+
     roles = ds.get("templateRoles", {}) or {}
     role_of = {}
     for role, stems in roles.items():

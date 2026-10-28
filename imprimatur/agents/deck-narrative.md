@@ -104,6 +104,14 @@ Visual:     [none | chart (bar/donut/line) | pipeline | bespoke — if bespoke, 
              scope, team at centre"]
 Key data:   [the specific numbers, facts, evidence — cite source-notes where they came from]
 Emphasis:   [what the eye lands on first: the number? the visual? the headline?]
+Link:       [the logical step from the PREVIOUS slide, one word: and-also | therefore | but |
+            proof | new-act. It decides the cut between the two slides (a quiet fade for
+            "and also", a push for "therefore", a contrasting whip for "but", a zoom onto
+            evidence for "proof", a depth push into a new act). Omit on slide 1.]
+Motion:     [bespoke/pipeline/chart slides only — the visual's storyline in one sentence: who or what
+            moves, from where to where, and what it leaves behind. e.g. "a newcomer arrives from the
+            left and must visit every island to rebuild context — the islands appear where it passes".
+            The motion director stages exactly this. Omit on text slides.]
 Audience:   [executive / technical / mixed]
 Density:    [N bullets, N cards, N metrics, N chart elements — within the dial]
 
@@ -121,6 +129,8 @@ Key data:   - Batch refresh: once per night (22:00)   [source-notes §2]
             - Backlog: BI team averaging 3-week request queue
             - Cost: €450k/year on legacy maintenance
 Emphasis:   The gap between demand (4× daily) and capability (1× nightly)
+Link:       but
+Motion:     The demand bars rise first, then the single capability bar grows and stops short — the gap is what stays on screen
 Audience:   executive
 Density:    4 bullets left, 3 bullets right, 1 metric (€450k)
 ```

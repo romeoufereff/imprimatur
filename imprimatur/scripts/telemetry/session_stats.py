@@ -27,6 +27,14 @@ carrying `agentType` + `description`), reports:
   slide_cycle_s    median seconds between consecutive slide-authoring events
   flags            main_wrote_slide · main_read_image · main_wrote_outline ·
                    validate_by_hand=N · qa_runs=N · legacy_hook=N
+  report_bytes     text in the agent's LAST assistant turn — the report the orchestrator
+                   receives and then re-reads on every later turn (2026-10-04: the
+                   caveman-skill question; agent prose turned out to be ≈ 1–2 % of a
+                   deck's tokens, so these fields exist to keep it measured, not guessed)
+  sendmessage_bytes  total `message` bytes sent via SendMessage (revision traffic)
+  out_text_chars / out_tool_chars   assistant output split: prose vs tool_use input
+                   (Edit payloads, Bash commands) — the honest answer to "is the output
+                   cost in words or in HTML?"
 
 Plus a phase timeline derived from `Agent` spawns in the main transcript:
 narrative → design (first designer spawn → last designer chunk end before the
@@ -105,6 +113,10 @@ def analyze_transcript(path, is_main=False):
     spans = []          # per-slide spans: {"n", "calls", "turns", "bespoke"} from one new_slide.py to the next
     static_mentions = 0  # assistant text acknowledging a static verdict (subagent hook events leave no attachment)
     spawns = []
+    out_text_chars = 0
+    out_tool_chars = 0
+    last_text_chars = 0   # text in the most recent assistant turn → report_bytes at the end
+    sendmessage_bytes = 0
     flags = {"main_wrote_slide": 0, "main_read_image": 0, "main_wrote_outline": 0,
              "validate_by_hand": 0, "qa_runs": 0, "legacy_hook": 0}
 
@@ -150,16 +162,25 @@ def analyze_transcript(path, is_main=False):
                 ctx_peak = max(ctx_peak, ctx)
                 if not isinstance(content, list):
                     continue
+                turn_text = 0
                 for block in content:
                     if not isinstance(block, dict):
                         continue
-                    if block.get("type") == "text" and re.search(r"\bstatic (?:pass|fail)", block.get("text", ""), re.I):
-                        static_mentions += 1
+                    if block.get("type") == "text":
+                        turn_text += len(block.get("text", "") or "")
+                        if re.search(r"\bstatic (?:pass|fail)", block.get("text", ""), re.I):
+                            static_mentions += 1
                     if block.get("type") != "tool_use":
                         continue
                     tool_calls += 1
                     name = block.get("name")
                     inp = block.get("input") or {}
+                    try:
+                        out_tool_chars += len(json.dumps(inp, ensure_ascii=False))
+                    except Exception:
+                        pass
+                    if name == "SendMessage":
+                        sendmessage_bytes += len(str(inp.get("message", "")))
                     # Credit a file-tool call to the span of the slide it touches (a chunk-end
                     # fix on slide 06 must not be billed to slide 07, whose span happens to be
                     # current); everything else goes to the current span.
@@ -211,6 +232,9 @@ def analyze_transcript(path, is_main=False):
                         spawns.append({"t": t, "type": inp.get("subagent_type"),
                                        "desc": inp.get("description"),
                                        "prompt_bytes": len(str(inp.get("prompt", "")))})
+                out_text_chars += turn_text
+                if turn_text:
+                    last_text_chars = turn_text
 
             elif rtype == "user" and isinstance(content, list):
                 for block in content:
@@ -255,6 +279,10 @@ def analyze_transcript(path, is_main=False):
         "calls_per_template_slide_median": round(statistics.median(s["calls"] for s in template_spans), 1) if template_spans else None,
         "calls_per_bespoke_slide_median": round(statistics.median(s["calls"] for s in bespoke_spans), 1) if bespoke_spans else None,
         "static_mentions": static_mentions,
+        "report_bytes": last_text_chars,
+        "sendmessage_bytes": sendmessage_bytes,
+        "out_text_chars": out_text_chars,
+        "out_tool_chars": out_tool_chars,
         "flags": flags,
         "spawns": spawns,
         "t_start": t0.isoformat() if t0 else None,

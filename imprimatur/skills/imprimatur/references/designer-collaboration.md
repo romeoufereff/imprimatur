@@ -29,6 +29,7 @@ Structure:  [e.g. "Two columns — AS-IS left, TO-BE right"]
 Visual:     [none | chart (bar/donut/line) | pipeline | bespoke (metaphor in one sentence)]
 Key data:   [numbers, facts, evidence that go on the slide]
 Emphasis:   [what the eye lands on first]
+Motion:     [bespoke/pipeline/chart only — the visual's storyline in one sentence; the motion director stages it]
 Audience:   [executive / technical / mixed]
 Density:    [N bullets, N cards, N metrics — sized to the DENSITY dial]
 ```

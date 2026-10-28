@@ -3,22 +3,25 @@
 Render-level layout checker — design-system agnostic.
 
 Loads each slide in headless Chromium at the active design system's native canvas size
-and runs two checks that validate.py (pure grep) structurally cannot:
+and runs three checks that validate.py (pure grep) structurally cannot:
 
   1. OVERFLOW — any element whose rect sticks out past the #slide canvas: text that grew
      past its container, cards that spill off-canvas, SVG labels clipped at the edge.
   2. COLLISIONS (rules.banElementCollisions) — content sitting ON TOP of other content:
      text over text, or an opaque panel covering text. A slide can pass every other gate
      while a paragraph is completely hidden behind a card, because nothing has left the
-     canvas and every colour and font is legal.
+     canvas and every colour and font is legal. Text over a logo or labelled mark counts.
+  3. SVG SIZING — an <svg> laid out smaller than written (flex-squashed below its height
+     attribute or its unshrunk size), or SVG text whose RENDERED size is below the pack's
+     typography.minFontSizePx. validate.py reads SVG sizes as written and cannot see either.
 
-Both are the "measure, don't eyeball" half of QA.
+All three are the "measure, don't eyeball" half of QA.
 
 Usage:
     python3 scripts/check_overflow.py            # check every template in templates/
     python3 scripts/check_overflow.py FILE...    # check specific HTML files (e.g. generated slides)
 
-Exit code 0 = clean; 1 = at least one overflow or collision.
+Exit code 0 = clean; 1 = at least one overflow, collision or SVG sizing violation.
 
 A design system may sanction templates that intentionally bleed ONE decorative element
 past the canvas edge (clipped by #slide's overflow:hidden) — those files tolerate
@@ -59,6 +62,7 @@ MEASURE_JS = """
   for (const el of slide.querySelectorAll('*')) {
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    if (el.closest('[class*="sr-only"]:not(.not-sr-only), [class*="visually-hidden"]')) continue;   // screen-reader-only text is not on the slide
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) continue;
     const over = {
@@ -161,6 +165,11 @@ def check_files(paths, ds):
 #   • text-over-text     — two elements that each paint their own text, overlapping
 #   • panel-over-text    — an element with an opaque background painted AFTER a text
 #                          element in document order (so it covers it)
+#   • text-over-logo /   — text overlapping a logo (the pack's logo.selector, [data-logo],
+#     text-over-mark       [data-client-logo], a co-brand client mark [data-cobrand="client"])
+#                          or a labelled svg/img no larger than 240px,
+#                          in either paint order. Big diagrams are not marks: templates
+#                          lay HTML labels over a background curve on purpose.
 # Ancestor/descendant pairs are never collisions (a heading inside its card, a
 # gradient <span> inside its <h1>) — that is ordinary nesting.
 #
@@ -169,7 +178,8 @@ def check_files(paths, ds):
 # data-decor-bleed / data-decor-text convention.
 
 COLLIDE_JS = """
-(tol) => {
+([tol, logoSel]) => {
+  const MARK_PX = 240;   // a labelled svg/img this small is a mark (logo, icon), not a diagram
   const slide = document.getElementById('slide');
   if (!slide) return { error: 'no #slide element' };
   const els = [...slide.querySelectorAll('*')];
@@ -177,8 +187,16 @@ COLLIDE_JS = """
   els.forEach((el, i) => {
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return;
-    if (el.closest('svg')) return;                       // SVG internals have their own layout
+    // SVG internals have their own layout — but a MARK (a logo, a labelled icon) is a
+    // painted box text must not sit on. Skipping every <svg> whole (until 1.6.1) meant the
+    // footer logo was never compared: a caption sat on it and passed (a client deck,
+    // slide 03). Large unlabelled-or-labelled diagrams are NOT occluders: templates lay
+    // HTML labels over a background curve or staircase on purpose.
+    const tg = el.tagName.toLowerCase();
+    const rootSvg = tg === 'svg' && !(el.parentElement && el.parentElement.closest('svg'));
+    if (el.closest('svg') && !rootSvg) return;
     if (el.closest('[data-overlap="ok"]')) return;       // sanctioned composition
+    if (el.closest('[class*="sr-only"]:not(.not-sr-only), [class*="visually-hidden"]')) return;   // screen-reader-only text
     // Decorative glyphs (ghost numerals, oversized quote marks) are DESIGNED to sit
     // behind content — the same category check_contrast.py already exempts. They are
     // composition, not collision.
@@ -186,6 +204,19 @@ COLLIDE_JS = """
     if (el.closest('[data-decor-bleed="ok"]')) return;
     let r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return;
+    if (rootSvg || tg === 'img') {
+      const logo = !!(logoSel && el.matches(logoSel)) || el.matches('[data-logo], [data-client-logo], [data-cobrand="client"]');
+      const labelled = el.hasAttribute('aria-label') || el.getAttribute('role') === 'img' || !!el.getAttribute('alt');
+      const mark = labelled && r.width <= MARK_PX && r.height <= MARK_PX;
+      if (!logo && !mark) { if (rootSvg) return; }
+      else {
+        // A mark is a non-text occluder: text over it is a collision whichever paints first.
+        info.push({ i, el, r, hasText: false, opaque: false, graphic: true, logo,
+                    tag: tg, cls: (el.getAttribute('class') || '').slice(0, 60),
+                    txt: (el.getAttribute('aria-label') || el.getAttribute('alt') || '').slice(0, 44) });
+        return;
+      }
+    }
     const hasText = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
     // A block element's rect spans its whole container, not its glyphs — an <h1> in a
     // 1760px column reports a 1760px-wide box even when the words occupy 700px of it.
@@ -225,6 +256,15 @@ COLLIDE_JS = """
       // Which pairs are defects: text vs text always; background vs text only when the
       // background paints later (document order approximates paint order without z-index).
       let kind = null;
+      if (A.graphic || B.graphic) {
+        const G = A.graphic ? A : B, T = A.graphic ? B : A;
+        if (!T.hasText) continue;                                 // graphic vs panel/graphic
+        kind = G.logo ? 'text over logo' : 'text over mark';
+        out.push({ kind, ox: Math.round(ox), oy: Math.round(oy),
+                   a: { tag: T.tag, cls: T.cls, txt: T.txt },
+                   b: { tag: G.tag, cls: G.cls, txt: G.txt || (G.logo ? 'logo' : G.tag) } });
+        continue;
+      }
       if (A.hasText && B.hasText) kind = 'text over text';
       else if (B.opaque && A.hasText) kind = 'panel over text';
       else if (A.opaque && B.hasText && A.i > B.i) kind = 'panel over text';
@@ -239,9 +279,11 @@ COLLIDE_JS = """
 """
 
 
-def analyze_collisions_page(page, tol):
-    """Run the collision detector on an ALREADY-LOADED page. Returns (collisions, error)."""
-    res = page.evaluate(COLLIDE_JS, tol)
+def analyze_collisions_page(page, tol, logo_selector=""):
+    """Run the collision detector on an ALREADY-LOADED page. Returns (collisions, error).
+    `logo_selector` (the pack's logo.selector) only names a graphic as a logo in the
+    report; every root <svg> takes part in the comparison either way."""
+    res = page.evaluate(COLLIDE_JS, [tol, logo_selector or ""])
     if 'error' in res:
         return None, res['error']
     return res['collisions'], None
@@ -274,7 +316,7 @@ def check_collisions(paths, ds):
             page.goto('file://' + os.path.abspath(path), wait_until='networkidle')
             page.evaluate("document.fonts.ready || Promise.resolve()")
             page.wait_for_timeout(400)
-            cols, err = analyze_collisions_page(page, tol)
+            cols, err = analyze_collisions_page(page, tol, ds.get('logo.selector', ''))
             if cols is None:
                 print(f'{name}\n  FAIL  {err}')
                 failures += 1
@@ -282,6 +324,143 @@ def check_collisions(paths, ds):
             for line in format_collisions_report(name, cols):
                 print(line)
             failures += len(cols)
+        browser.close()
+    return failures
+
+
+# ── SVG sizing ────────────────────────────────────────────────────────────
+# A root <svg> can be laid out SMALLER than it was written, and every label in it shrinks
+# with it. Nothing caught that: validate.py reads SVG font sizes as written, overflow sees
+# nothing leave the canvas, and the only witness was the gradient sampler's fontSize
+# column, which does not gate. Real case (a client deck, slide 04, 2026-10-20): an
+# <svg height="56"> rail in a flex column was flex-shrunk to ~22px when a sibling grew,
+# so its 22-unit labels rendered at 8.8px.
+#
+# Two findings, both measured on the rendered page:
+#   • svg squashed   — rendered height < SQUASH_RATIO x its height attribute (a length),
+#                      or the SVG is a flex item and re-measuring it with flex-shrink:0
+#                      grows either side by more than 1/SQUASH_RATIO: flex took the space.
+#                      An SVG sized by CSS (h-full, h-[480px]) is the author's choice and
+#                      is not judged against its viewBox — calibration on the EPAM pack
+#                      showed a viewBox-aspect rule flags deliberately fitted diagrams.
+#   • svg text small — SVG text whose RENDERED size (font-size x the screen CTM scale) is
+#                      below the pack's typography.minFontSizePx, when the pack enforces
+#                      the floor. Same floor validate.py applies to the written size.
+#
+# Escape hatch: data-svg-scale="ok" on the <svg> for a deliberate thumbnail. Decorative
+# glyphs (data-decor-text / data-decor-bleed) and client logos are exempt as elsewhere.
+
+SQUASH_RATIO = 0.9
+FLOOR_EPS = 0.25  # px: sub-pixel CTM rounding is not a defect
+
+SVG_SIZE_JS = """
+([ratio, floor, eps]) => {
+  const slide = document.getElementById('slide');
+  if (!slide) return { error: 'no #slide element' };
+  // the measurement is in canvas px even if a viewer scales #slide
+  const k0 = slide.offsetWidth ? slide.getBoundingClientRect().width / slide.offsetWidth : 1;
+  const exempt = '[data-svg-scale="ok"], [data-decor-text="ok"], [data-decor-bleed="ok"], [data-client-logo="ok"]';
+  const label = (svg) => (svg.getAttribute('aria-label') || svg.getAttribute('class') || '').slice(0, 60)
+    || ((svg.querySelector('text') || {}).textContent || '').trim().slice(0, 40) || 'svg';
+  // the opening tag, trimmed to the attributes that find it in the source
+  const tag = (svg) => '<svg' + ['id', 'class', 'aria-label', 'viewBox', 'width', 'height']
+    .filter(a => svg.hasAttribute(a)).map(a => ` ${a}="${svg.getAttribute(a).slice(0, 40)}"`).join('') + '>';
+  const out = [];
+  for (const svg of slide.querySelectorAll('svg')) {
+    if (svg.parentElement && svg.parentElement.closest('svg')) continue;   // root svgs only
+    if (svg.closest(exempt)) continue;
+    const cs = getComputedStyle(svg);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const r = svg.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    const w = r.width / k0, h = r.height / k0;
+    let want = null, basis = null, got = h;
+    const ha = (svg.getAttribute('height') || '').trim();
+    const mh = ha.match(/^([\\d.]+)(px)?$/);
+    if (mh && h < ratio * parseFloat(mh[1])) { want = parseFloat(mh[1]); basis = 'height="' + ha + '"'; }
+    const pd = svg.parentElement ? getComputedStyle(svg.parentElement).display : '';
+    if (!want && /flex/.test(pd) && parseFloat(cs.flexShrink) > 0) {
+      const prev = svg.style.flexShrink;
+      svg.style.flexShrink = '0';
+      const n = svg.getBoundingClientRect();
+      svg.style.flexShrink = prev;
+      const nw = n.width / k0, nh = n.height / k0;
+      if (h < ratio * nh) { want = nh; basis = 'flex-shrink:0 height'; }
+      else if (w < ratio * nw) { want = nw; got = w; basis = 'flex-shrink:0 width'; }
+    }
+    if (want) {
+      out.push({ kind: 'svg squashed', label: label(svg), element: tag(svg), rendered: Math.round(got * 10) / 10,
+                 expected: Math.round(want * 10) / 10, basis,
+                 pct: Math.round(100 * got / want) });
+    }
+    if (floor > 0) {
+      for (const t of svg.querySelectorAll('text')) {
+        if (t.closest(exempt)) continue;
+        const txt = (t.textContent || '').trim();
+        if (!txt) continue;
+        const tcs = getComputedStyle(t);
+        if (tcs.display === 'none' || tcs.visibility === 'hidden') continue;
+        const ctm = t.getScreenCTM();
+        const k = (ctm ? Math.sqrt(Math.abs(ctm.a * ctm.d - ctm.b * ctm.c)) : 1) / k0;
+        const written = parseFloat(tcs.fontSize);
+        const px = written * k;
+        if (px < floor - eps) {
+          out.push({ kind: 'svg text below floor', label: label(svg), element: tag(svg), text: txt.slice(0, 44),
+                     rendered: Math.round(px * 10) / 10, written: Math.round(written * 10) / 10,
+                     scale: Math.round(k * 100) / 100, floor });
+        }
+      }
+    }
+  }
+  return { findings: out };
+}
+"""
+
+
+def analyze_svg_sizing_page(page, ds):
+    """Run the SVG sizing check on an ALREADY-LOADED page. Returns (findings, error)."""
+    floor = float(ds.get('typography.minFontSizePx', 0) or 0) if ds.rule('enforceFontSizeFloor') else 0.0
+    res = page.evaluate(SVG_SIZE_JS, [SQUASH_RATIO, floor, FLOOR_EPS])
+    if 'error' in res:
+        return None, res['error']
+    return res['findings'], None
+
+
+def format_svg_sizing_report(name, findings):
+    lines = []
+    if findings:
+        lines.append(name)
+        for f in findings[:8]:
+            if f['kind'] == 'svg squashed':
+                lines.append(f'  FAIL  svg squashed to {f["rendered"]}px, {f["pct"]}% of '
+                             f'{f["expected"]}px ({f["basis"]}) — {f["element"]}')
+            else:
+                lines.append(f'  FAIL  svg text renders at {f["rendered"]}px < {f["floor"]:g}px floor '
+                             f'(written {f["written"]:g}, svg scaled x{f["scale"]}) — {f["text"]!r} in {f["element"]}')
+        if len(findings) > 8:
+            lines.append(f'  … and {len(findings) - 8} more')
+    return lines
+
+
+def check_svg_sizing(paths, ds):
+    cw, ch = ds.canvas
+    failures = 0
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": cw, "height": ch})
+        for path in paths:
+            name = os.path.basename(path)
+            page.goto('file://' + os.path.abspath(path), wait_until='networkidle')
+            page.evaluate("document.fonts.ready || Promise.resolve()")
+            page.wait_for_timeout(400)
+            found, err = analyze_svg_sizing_page(page, ds)
+            if found is None:
+                print(f'{name}\n  FAIL  {err}')
+                failures += 1
+                continue
+            for line in format_svg_sizing_report(name, found):
+                print(line)
+            failures += len(found)
         browser.close()
     return failures
 
@@ -308,7 +487,13 @@ def main():
         else:
             print(f'All {n} file(s) free of element collisions.')
 
-    if failures or collisions:
+    sizing = check_svg_sizing(targets, ds)
+    if sizing:
+        print(f'\n{sizing} SVG sizing violation(s) across {n} file(s).')
+    else:
+        print(f'All {n} file(s) render their SVGs at the written size.')
+
+    if failures or collisions or sizing:
         sys.exit(1)
 
 

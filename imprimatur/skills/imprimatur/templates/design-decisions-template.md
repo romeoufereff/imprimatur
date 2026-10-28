@@ -8,7 +8,12 @@ scripts and read by everyone:
   design plan), then runs `plan_check.py --deck-dir D` against it.
 - **Designer chunks, phase 4** — `log_slide.py --locked` before each slide (prints only the
   `Locked choices` block, ≤ 600 B); `log_slide.py --n N … --status written|revised` after
-  each slide upserts that slide's row and appends a `Deviations` line if given.
+  each slide upserts that slide's row and, with `--deviation`, upserts that slide's
+  `Deviations` line: re-logging the slide **replaces its latest line** (write the whole
+  current story in that one line); `--deviation … --append` folds the note into that
+  same line (`<old>; <new>`). A slide has one line, always. Before 2026-10-06 every
+  re-log appended, so an audited slide ended up with 2–3 near-duplicate lines; until
+  1.6.5 `--append` still added a second one.
   `log_slide.py --summary` prints the whole file — that is the designer's batch report.
 - **design-crit and brand-audit** — read it for the locked accent and the template tally.
 - **A fresh agent or a resumed session** — its entire memory of cross-slide decisions.
@@ -44,4 +49,5 @@ Column rules: `#` integer · `File` = `NN-slug.html` · `Template` = pack stem e
 `none | chart | pipeline | bespoke` · `Focal` ≤ 12 words · `Status` =
 `planned | written | revised` (the orchestrator writes `planned`; `log_slide.py` writes
 the other two). `Deviations` lines are `- NN: <one line>` and are written only via
-`log_slide.py --deviation`.
+`log_slide.py --deviation` — one line per slide (replace-latest on re-log, `--append`
+extends that line, never adds one).

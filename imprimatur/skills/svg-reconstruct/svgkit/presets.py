@@ -146,26 +146,39 @@ WEDGE_SEQUENCE = ([[tuple(s) for s in wedge] for wedge in _WEDGES]
 
 # Minimum type sizes. svgkit does not enforce these automatically — the designer
 # self-check and brand-audit are the actual gates — but recipes should not default
-# below them without a documented reason.
-MIN_BODY_PX = _ds.get("svg.minBodyPx", 20)
-MIN_LABEL_PX = _ds.get("svg.minLabelPx", 16)
-MIN_CAPTION_PX = _ds.get("svg.minCaptionPx", _ds.get("typography.minFontSizePx", 14))
+# below them without a documented reason. Since 2026-10-06 validate.py applies the
+# pack's PROSE floor (typography.minFontSizePx) to SVG text too, so every tier is
+# clamped to it: a pack may size its tiers above the floor, never below (the EPAM
+# pack's old 16/14 label/caption tiers produced diagrams that then failed the audit).
+
+
+def _tier(key, default, floor):
+    v = _ds.get(key, default)
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        v = float(default)
+    v = max(v, floor)
+    return int(v) if v == int(v) else v
+
+
+_PROSE_FLOOR = float(_ds.get("typography.minFontSizePx", 14) or 14)
+MIN_BODY_PX = _tier("svg.minBodyPx", 20, _PROSE_FLOOR)
+MIN_LABEL_PX = _tier("svg.minLabelPx", 16, _PROSE_FLOOR)
+MIN_CAPTION_PX = _tier("svg.minCaptionPx", _PROSE_FLOOR, _PROSE_FLOOR)
 
 # Icon stroke width, matching the pack's icon rules.
 STROKE_WIDTH = _ds.get("svg.iconStrokeWidth", 1.8)
 
 
 def _shade(hex_color, amt):
-    """Lighten (amt>0) or darken (amt<0) a resolved hex color toward white/black.
+    """Lighten (amt>0) or darken (amt<0) a resolved hex toward white/black.
 
-    This is NOT "inventing a new hex value" in the sense the module docstring
-    forbids — it derives a tint/shade of a color the pack already resolved, the
-    same way a two-stop CSS gradient on a single brand color would. It exists so
-    a builder that only has ONE role to paint with (a single wedge, a single gauge
-    fill, a single cycle node) still produces a genuine two-tone gradient instead
-    of a flat fill written as two identical stops — the flat-gradient antipattern
-    this file's `_stops` fallbacks used to encourage by example.
-    """
+    DEPRECATED for engine output — nothing in svgkit calls it any more. A computed shade
+    is a colour the pack never declared, so every shaded stop failed the palette census
+    on the slide that used it (2026-10-01: #2646C4 / #3B6BE6 / #6A5BD8 / #5E36A8-style
+    stops). Use `partner()` / `sequential_stops()` — on-palette pairs — instead. Kept
+    only so a hand-written config that still calls it does not crash."""
     h = hex_color.lstrip("#")
     if len(h) != 6:
         return hex_color  # not a plain hex (named color, url()...) — leave it alone
@@ -177,7 +190,34 @@ def _shade(hex_color, amt):
     return "#{:02X}{:02X}{:02X}".format(*(max(0, min(255, round(v))) for v in (r, g, b)))
 
 
-def sequential_stops(i, n, light=0.20, dark=-0.14):
+def _ramp():
+    """The pack's own colour order for two-tone pairs: the brand gradient's stops, then
+    the viz series — every entry a declared colour, deduplicated, order kept."""
+    seen, out = set(), []
+    for c in [st[1] for st in BRAND_GRADIENT_STOPS] + list(VIZ_SEQUENCE):
+        u = (c or "").upper()
+        if u.startswith("#") and u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
+
+
+def partner(hex_color):
+    """On-palette second stop for a one-colour gradient: base's neighbour in the pack's
+    brand ramp (418DFF→3055DA→8353D2→…), so a two-tone fill never invents a hex."""
+    ramp = _ramp()
+    base = (hex_color or "").upper()
+    if base in ramp and len(ramp) > 1:
+        i = ramp.index(base)
+        brand = [st[1].upper() for st in BRAND_GRADIENT_STOPS]
+        if base in brand and len(brand) > 1:      # stay inside the brand ramp: …→purple→blue
+            j = brand.index(base)
+            return brand[j + 1] if j + 1 < len(brand) else brand[-2]
+        return ramp[(i + 1) % len(ramp)]
+    return PRIMARY if base != PRIMARY.upper() else ACCENT
+
+
+def sequential_stops(i, n, light=None, dark=None):
     """Per-item fill stops for the i-th of n items in a multi-segment radial/repeating
     diagram (donut wedges, pie slices, gauge fill, cycle nodes) — the default every such
     builder should reach for instead of a bare `presets.PRIMARY` flat fill or a config
@@ -185,13 +225,13 @@ def sequential_stops(i, n, light=0.20, dark=-0.14):
 
     Prefers the pack's own authored `svg.wedgeSequence` (WEDGE_SEQUENCE) when it declares
     enough entries to cover all n items — that is real design-system intent about which
-    exact stops read well together. Otherwise cycles the pack's viz hue sequence
-    (VIZ_SEQUENCE) so an N-segment wheel reads as N distinct-but-related hues rather than
-    one hue repeated flat, and shades each into a genuine light-to-dark gradient via
-    `_shade` so even a single-hue pack still gets real depth, not a flat duplicate stop.
+    exact stops read well together. Otherwise pairs each viz hue with its on-palette
+    neighbour (`partner`). Never shades: a tint/shade is a colour the pack did not
+    declare, and the palette census fails it (light/dark are accepted and ignored for
+    old callers).
     """
     if len(WEDGE_SEQUENCE) >= n:
         return WEDGE_SEQUENCE[i % len(WEDGE_SEQUENCE)]
     hues = VIZ_SEQUENCE or [PRIMARY]
     base = hues[i % len(hues)]
-    return [("0%", _shade(base, light), 1), ("100%", _shade(base, dark), 1)]
+    return [("0%", base, 1), ("100%", partner(base), 1)]

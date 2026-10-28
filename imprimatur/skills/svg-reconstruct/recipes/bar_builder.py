@@ -27,13 +27,13 @@ def build(config_path, out_svg_path=None):
                 body.append(f'<line x1="{gx:.1f}" y1="{p["y"]}" x2="{gx:.1f}" '
                             f'y2="{p["y"]+p["h"]}" stroke="{presets.RULE}"/>')
                 body.append(text.label(gx, p["y"]+p["h"]+20, f"{val:g}",
-                            font.get("axis_size", 13), color="#666", weight="400"))
+                            font.get("axis_size", 13), color=presets.MUTED, weight="400"))
             else:
                 gy = y_of(val)
                 body.append(f'<line x1="{p["x"]}" y1="{gy:.1f}" '
                             f'x2="{p["x"]+p["w"]}" y2="{gy:.1f}" stroke="{presets.RULE}"/>')
                 body.append(text.label(p["x"]-14, gy, f"{val:g}",
-                            font.get("axis_size", 13), color="#666",
+                            font.get("axis_size", 13), color=presets.MUTED,
                             weight="400", anchor="end"))
 
     bars = cfg["bars"]
@@ -53,11 +53,11 @@ def build(config_path, out_svg_path=None):
             body.append(f'<path d="{g.rounded_rect(bx, by, length, bw, corner)}" '
                         f'fill="url(#{gid})"/>')
             body.append(text.label(p["x"]-14, by+bw/2, b["label"],
-                        font.get("label_size", 15), color="#333",
+                        font.get("label_size", 15), color=presets.BODY,
                         weight="600", anchor="end"))
             if cfg.get("value_labels", True):
                 body.append(text.label(bx+length+8, by+bw/2, f'{b["value"]:g}',
-                            font.get("axis_size", 13), color="#333",
+                            font.get("axis_size", 13), color=presets.BODY,
                             weight="600", anchor="start"))
         else:
             bx = p["x"] + slot * i + (slot - bw) / 2
@@ -66,15 +66,15 @@ def build(config_path, out_svg_path=None):
             body.append(f'<path d="{g.rounded_rect(bx, top, bw, h, corner)}" '
                         f'fill="url(#{gid})"/>')
             body.append(text.label(bx+bw/2, p["y"]+p["h"]+24, b["label"],
-                        font.get("label_size", 15), color="#333", weight="600"))
+                        font.get("label_size", 15), color=presets.BODY, weight="600"))
             if cfg.get("value_labels", True):
                 body.append(text.label(bx+bw/2, top-12, f'{b["value"]:g}',
-                            font.get("axis_size", 13), color="#333", weight="600"))
+                            font.get("axis_size", 13), color=presets.BODY, weight="600"))
 
     body.append(f'<line x1="{p["x"]}" y1="{p["y"]+p["h"]}" x2="{p["x"]+p["w"]}" '
-                f'y2="{p["y"]+p["h"]}" stroke="#333"/>')
+                f'y2="{p["y"]+p["h"]}" stroke="{presets.BODY}"/>')
     body.append(f'<line x1="{p["x"]}" y1="{p["y"]}" x2="{p["x"]}" '
-                f'y2="{p["y"]+p["h"]}" stroke="#333"/>')
+                f'y2="{p["y"]+p["h"]}" stroke="{presets.BODY}"/>')
 
     doc = canvas.svg(cfg["width"], cfg["height"], "".join(defs), "".join(body),
                      bg=cfg.get("background", "#ffffff"))

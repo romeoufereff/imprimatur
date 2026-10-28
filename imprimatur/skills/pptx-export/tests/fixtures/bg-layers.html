@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>background layers fixture</title>
+<!-- Regression fixture (1.6.5) for text over background images, graded by
+     `run_evals.py export` (PPTX) and `run_evals.py contrast` (check_contrast /
+     check_gradient). Brand-neutral shapes of the 2026-10-23 exec briefing's slides 9 and 12:
+       track    a gantt track whose quarter gridlines are a sized background-image, with a
+                gradient bar and its label inside — the exporter screenshotted the whole
+                track, bar and text included
+       pill     a `to right` gradient without stop positions (Tailwind's computed form)
+                holding its label — not parsed, so screenshotted with the text
+       card     a card whose gradient border is a layered background holding a heading
+       sibling  a label over an absolutely positioned SIBLING gradient layer, no solid
+                parent colour: check_contrast read it as white-on-white (1.00:1) FAIL
+       wash     a radial wash with no content — still one picture
+       lowcon   light text over a light sibling solid layer: a real contrast FAIL
+                (check_contrast must read the sibling layer, not the white page) -->
+<style>
+  html, body { margin: 0; }
+  #slide { position: relative; width: 1920px; height: 1080px; background: rgb(255, 255, 255);
+           font-family: Arial, Helvetica, sans-serif; color: rgb(34, 34, 34); }
+  .track { position: absolute; left: 120px; top: 120px; width: 1200px; height: 120px;
+           background-image: linear-gradient(90deg, rgb(216, 222, 231) 1px, transparent 1px);
+           background-size: 20% 100%; }
+  .bar { position: absolute; top: 32px; left: 0; width: 70%; height: 56px; border-radius: 9999px;
+         display: flex; align-items: center; padding: 0 22px; box-sizing: border-box;
+         background: linear-gradient(60deg, rgb(65, 141, 255) 0%, rgb(48, 85, 218) 70%, rgb(131, 83, 210) 100%);
+         color: rgb(255, 255, 255); font-size: 28px; font-weight: 700; white-space: nowrap; }
+  .pill { position: absolute; left: 120px; top: 300px; height: 56px; padding: 0 28px;
+          display: flex; align-items: center; border-radius: 9999px;
+          background-image: linear-gradient(to right, rgb(48, 85, 218), rgb(131, 83, 210));
+          color: rgb(255, 255, 255); font-size: 28px; font-weight: 700; }
+  .card { position: absolute; left: 120px; top: 420px; width: 560px; height: 200px; box-sizing: border-box;
+          border: 2px solid transparent; border-radius: 12px; padding: 28px;
+          background: linear-gradient(rgb(255, 255, 255), rgb(255, 255, 255)) padding-box,
+                      linear-gradient(60deg, rgb(65, 141, 255) 0%, rgb(131, 83, 210) 100%) border-box; }
+  .card h3 { margin: 0; font-size: 36px; color: rgb(34, 34, 34); }
+  .sibling { position: absolute; left: 800px; top: 420px; width: 520px; height: 72px; }
+  .sibling .fill { position: absolute; inset: 0; border-radius: 9999px; pointer-events: none;
+                   background: linear-gradient(60deg, rgb(65, 141, 255) 0%, rgb(48, 85, 218) 70%, rgb(131, 83, 210) 100%); }
+  .sibling span { position: relative; display: block; padding: 18px 28px; color: rgb(255, 255, 255);
+                  font-size: 28px; font-weight: 700; }
+  .wash { position: absolute; left: 1400px; top: 120px; width: 400px; height: 300px;
+          background: radial-gradient(circle at 50% 50%, rgb(196, 212, 255) 0%, rgba(255, 255, 255, 0) 70%); }
+  .lowcon { position: absolute; left: 800px; top: 560px; width: 520px; height: 72px; }
+  .lowcon .fill { position: absolute; inset: 0; background: rgb(232, 241, 255); }
+  .lowcon span { position: relative; display: block; padding: 18px 28px; color: rgb(255, 255, 255);
+                 font-size: 20px; }
+</style>
+</head>
+<body>
+<div id="slide" data-template="fixture">
+  <div class="track" data-case="track"><div class="bar">MVP until end of the year</div></div>
+  <div class="pill" data-case="pill">Native gradient pill</div>
+  <div class="card" data-case="card"><h3>Card heading on a gradient border</h3></div>
+  <div class="sibling" data-case="sibling"><div class="fill" aria-hidden="true"></div><span>Label over a sibling gradient</span></div>
+  <div class="wash" data-case="wash"></div>
+  <div class="lowcon" data-case="lowcon"><div class="fill" aria-hidden="true"></div><span>White on a pale sibling layer</span></div>
+</div>
+</body>
+</html>

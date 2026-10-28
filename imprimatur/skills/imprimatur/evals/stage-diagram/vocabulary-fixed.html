@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!-- vocabulary.html repaired: three panel styles (rule band, bordered card, tinted card — the
+     focal block and the decision card share the tinted style, their fills are the legend's
+     modes), one focal tint, one solid connector colour, dashed paths in the exception colour. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>diagram vocabulary — fixed</title>
+<style>
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #1A1A1A; }
+  #slide { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #FFFFFF; }
+  .abs { position: absolute; box-sizing: border-box; padding: 16px; font-size: 24px; }
+  .band { background: #FFFFFF; border-top: 1px solid #D0D0D0; border-bottom: 1px solid #D0D0D0; }
+  .card { background: #FFFFFF; border: 1px solid #D0D0D0; border-radius: 12px; }
+  .focal { background: #F5F5F5; border-radius: 12px; }
+  .people { background: #E6E8EC; border-radius: 12px; }
+</style>
+</head>
+<body>
+<div id="slide">
+  <div class="abs band" style="left:80px; top:80px; width:1760px; height:80px;">Rule band</div>
+  <div class="abs card" style="left:80px; top:220px; width:360px; height:140px;">Process card</div>
+  <div class="abs people" style="left:600px; top:220px; width:360px; height:140px;">A person decides</div>
+  <div class="abs focal" style="left:1120px; top:220px; width:360px; height:140px;">Focal block</div>
+  <div class="abs card" style="left:80px; top:480px; width:360px; height:140px;">Second process card</div>
+  <div class="abs card" style="left:600px; top:480px; width:360px; height:140px;">Third process card</div>
+  <svg style="position:absolute; left:0; top:0" width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#3355DD"/></marker></defs>
+    <path d="M 440 290 L 600 290" stroke="#3355DD" stroke-width="2" fill="none" marker-end="url(#m)"/>
+    <path d="M 960 290 L 1120 290" stroke="#3355DD" stroke-width="2" fill="none" marker-end="url(#m)"/>
+    <path d="M 440 550 L 600 550" stroke="#6A6A6A" stroke-width="2" fill="none" stroke-dasharray="8 5" marker-end="url(#m)"/>
+  </svg>
+</div>
+</body>
+</html>

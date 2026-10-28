@@ -19,6 +19,7 @@ See ../references/pack-contract.md for the decisions.json schema and what every 
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -34,6 +35,62 @@ RULES_DEFAULT = {
 
 def die(msg):
     sys.exit(f"error: {msg}")
+
+
+def default_motion_block(prefix, scale_names, footer=None):
+    """A calm, brand-neutral motion language bound to THIS pack's class names.
+
+    Role selectors are built from the type-scale names the pack actually has (an `eyebrow`
+    step becomes `.text-<prefix>-eyebrow`, metric/stat/display steps become kpi targets); the
+    footer strip and any logo are never animated. Values are engine defaults the pack may
+    tune later by hand — timings in ms, GSAP ease names.
+    """
+    names = set(scale_names or [])
+    def cls(n):
+        return f".text-{prefix}-{n}"
+    eyebrow = [cls(n) for n in names if re.search(r"eyebrow|kicker|overline", n)]
+    eyebrow += [cls(n) + ".uppercase" for n in names if re.search(r"caption|label", n)]
+    kpi = [cls(n) for n in names if re.search(r"metric|stat|number|numeral|hero|display", n)]
+    return {
+        "$comment": [
+            "deck-motion (engine ≥ 1.5.0, contract 1.1): how this brand moves. Generated defaults —",
+            "selectors from the pack's own type scale, calm timings. choreograph.py reads a finished",
+            "slide, classifies regions with roleSelectors, and emits one paused GSAP timeline per slide;",
+            "the runtime is a no-op under Playwright so PDF/PPTX/QA always see the static slide.",
+            "Tune durations/easing/transition by hand; keep `never` covering logo, footer and decor.",
+        ],
+        "enabled": True,
+        "entranceBudgetMs": 1600, "staggerCapMs": 500, "distancePx": 24,
+        "durationMs": {"fast": 300, "base": 450, "slow": 700},
+        "personality": "corporate", "easing": {"transition": "power2.inOut"},
+        "allowedEffects": ["fade", "fade-up", "fade-left", "rise", "blur-in", "wipe-right", "wipe-up", "words", "words-mask",
+                           "spring", "whip", "slam", "snap", "rise-rotate", "grow-y", "grow-x", "draw", "count-up",
+                           "lift", "settle", "focus-pull"],
+        "variety": "rotate",
+        "transition": {"type": "crossfade", "durationMs": 450},
+        "gsapUrl": "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js",
+        "roleSelectors": {
+            "eyebrow": eyebrow, "title": ["h1"], "subtitle": ["h1 + p", "h2"], "kpi": kpi,
+            "bar": ["svg rect[data-chart-bar]"],
+            "arc": ["svg circle[stroke-dasharray]", "svg path[stroke-dasharray]"],
+            "connector": ["svg path[marker-end]", "svg line[marker-end]"],
+            "chartBlock": ["#chart", "[data-chart]"],
+            "never": ["svg[role='img']", "[data-client-logo]", "[data-decor-bleed]", ".bottom-chrome", "#page-number"],
+        },
+        "roleEffects": {"eyebrow": ["fade", "wipe-right"], "title": ["words", "words-mask", "blur-in", "wipe-right"],
+                        "hero-title": ["slam", "words", "snap", "rise-rotate"],
+                        "subtitle": ["fade", "blur-in", "fade-up"], "card": ["spring", "rise", "wipe-up", "fade-up"],
+                        "svg-card": ["spring", "rise", "wipe-right"], "svg-text": ["fade", "blur-in", "whip"],
+                        "list-item": ["whip", "fade-left", "wipe-right"], "row": ["whip", "wipe-right", "fade"],
+                        "text": ["fade-left", "whip", "blur-in", "fade-up"], "kpi": "count-up", "bar": "grow-y",
+                        "arc": "draw", "connector": "draw", "image": ["fade", "blur-in"],
+                        "chartBlock": ["fade", "blur-in"], "emphasis": ["focus-pull", "lift", "settle"]},
+        "idle": {"camera": {"enabled": False, "scale": 1.035, "durationMs": 7000},
+                 "drift": {"enabled": True, "selectors": ["[data-decor-bleed]"], "px": 18, "rot": 1.5, "durationMs": 9000}},
+        "templateOverrides": {"01-cover": {"budgetMs": 2200, "transition_in": "none"},
+                              "05-section-divider": {"budgetMs": 1200}},
+        "qa": {"maxMae": 0.0, "maxInlineBytes": 4096},
+    }
 
 
 def js_tailwind(prefix, colors, scale, gradients, stack, font_class, radii, tracking):
@@ -303,7 +360,7 @@ def main():
         # not implement, so a pack that stops matching its engine says so at load instead of
         # half-working. Bump minor when the contract gains an optional field; bump major when
         # a required one changes shape or disappears.
-        "contractVersion": dec.get("contractVersion", "1.0"),
+        "contractVersion": dec.get("contractVersion", "1.1"),
         "id": dec["id"], "name": dec["name"], "version": dec.get("version", "1.0"),
         "canvas": canvas,
         # Only declare a directory the pack actually has. The engine discovers what a pack
@@ -341,6 +398,17 @@ def main():
     for extra in ("svg", "pptx", "charts", "iconPolicy", "editor", "exemptions", "ruleNotes"):
         if extra in dec:
             manifest[extra] = dec[extra]
+    # deck-motion (contract 1.1, optional): how this brand MOVES. The engine's choreograph.py
+    # reads it only for decks that opted in at intake; without the block a pack simply cannot
+    # animate. A brand with a stated motion language puts it in decisions.json ("motion");
+    # otherwise a calm default is derived from the pack's own prefix and type-scale names, so a
+    # new pack moves the moment a deck asks. `"motion": false` in decisions.json omits it.
+    if dec.get("motion") is False:
+        pass
+    elif isinstance(dec.get("motion"), dict):
+        manifest["motion"] = dec["motion"]
+    else:
+        manifest["motion"] = default_motion_block(prefix, list((dec.get("typeScale") or {}).keys()), footer)
     with open(os.path.join(out, "design-system.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
         f.write("\n")

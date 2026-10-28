@@ -69,6 +69,7 @@ orphan files must be archived rather than left beside the deck (`phase-4-design.
   ],
   "open_annotations": 0,
   "review": { "offered": false, "fast_track": false },
+  "motion": { "enabled": true, "transition": "crossfade", "steps": false },
   "next_action": "script re-check slide 3; chunk 2 (slides 6-10) still running"
 }
 ```
@@ -88,6 +89,19 @@ orphan files must be archived rather than left beside the deck (`phase-4-design.
 
 ### Deck-level fields
 
+- `design_system` — absolute path of the pack this deck is built on (the folder holding
+  `design-system.json`). **Written at 4a, read by everything.** `ds_config.py` resolves the
+  pack as explicit → this field → `$DECK_DESIGN_SYSTEM` → the shipped default, so hooks
+  (per-write verdict, designer stop gate, template-read guard, boot header) and scripts
+  judge a deck against its own brand even when the environment names another pack. A
+  deck without the field falls back to the environment — fine for a single-brand machine,
+  wrong the moment a second pack exists.
+- `cobrand` — optional, written at 4a for a client deck that carries a co-brand lockup:
+  `{"logo": "assets/<client>.png", "position": "left"}` (+ optional `"name"`, `"sizes"`).
+  The logo path is relative to the deck folder. `new_slide.py` applies the lockup on every
+  copy, `cobrand.py --deck-dir D` retrofits slides that predate it, and `qa.py` FAILs a
+  slide whose lockup is missing or broken (`cobrand` / `cobrand_deck` in its JSON).
+  `scripts/cobrand.py` documents the markup.
 - `phase` / `phase_name` / `phase_status` — 1–10 per the orchestrator workflow.
 - `open_annotations` — count of `status: "open"` in `annotations.json` (0 before any
   review round). A human-readable mirror, not the gate's input: `export_gate.py` reads
@@ -96,6 +110,12 @@ orphan files must be archived rather than left beside the deck (`phase-4-design.
   `review.fast_track` — `true` when the §1 fast-track legitimately skips the harness
   (internal + variance `low` + ≤ 7 slides). One of the two must be `true` before export;
   `export_gate.py` blocks a deck with no `annotations.json` and neither flag.
+- `motion` — the §1 intake decision, written once: `{"enabled": false}` (default when the
+  question was never asked) or `{"enabled": true, "transition": "crossfade|push|zoom-through",
+  "steps": true|false}`. `assemble_deck.py` picks the viewer from it and `choreograph.py`
+  exits immediately when it is off; the brief's `Motion:` line is the fallback when the field
+  is missing. Per-slide overrides (`motion.enabled`, `motion.emphasis_sel`, `motion.steps`)
+  may sit inside a `slides[]` entry; scripts other than choreograph.py ignore them.
 - `next_action` — one sentence; the single most useful field on resume.
 - Companion files: `deck-brief.md` (intent), `design-decisions.md` (the plan and per-slide
   log, `templates/design-decisions-template.md`), `deck-metadata.json` (identity, written by

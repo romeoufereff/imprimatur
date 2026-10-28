@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="200" viewBox="0 0 400 200">
+  <!-- The Illustrator export shape (client orbit artwork, 2026-10-22): stops live on
+       one gradient, the others point at it with xlink:href and carry only geometry. -->
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF6432"/>
+      <stop offset="0.5" stop-color="#8200DE"/>
+      <stop offset="1" stop-color="#0000FF"/>
+    </linearGradient>
+    <!-- inherits stops AND gradientUnits; overrides x1/x2 -->
+    <linearGradient id="ring" x1="40" y1="0" x2="360" y2="0" xlink:href="#base"/>
+    <!-- two hops, plain SVG2 href, inherits geometry too -->
+    <linearGradient id="hop2" href="#ring"/>
+    <!-- local stops win over the referenced ones -->
+    <linearGradient id="own" xlink:href="#base">
+      <stop offset="0" stop-color="#00FF00"/>
+      <stop offset="1" stop-color="#00AA00"/>
+    </linearGradient>
+    <!-- degenerate: zero stops anywhere in the chain, one stop, and a cycle -->
+    <linearGradient id="empty" x1="0" x2="1"/>
+    <linearGradient id="one"><stop offset="0" stop-color="#123456"/></linearGradient>
+    <linearGradient id="cyc-a" xlink:href="#cyc-b"/>
+    <linearGradient id="cyc-b" xlink:href="#cyc-a"/>
+  </defs>
+  <circle id="c-ring" cx="100" cy="100" r="80" fill="none" stroke="url(#ring)" stroke-width="4"/>
+  <circle id="c-hop2" cx="300" cy="100" r="80" fill="url(#hop2)"/>
+  <rect id="r-own" x="10" y="10" width="60" height="30" fill="url(#own)"/>
+  <rect id="r-empty" x="80" y="10" width="60" height="30" fill="#FFFFFF" stroke="url(#empty)"/>
+  <rect id="r-one" x="150" y="10" width="60" height="30" fill="url(#one)" stroke="url(#one)"/>
+  <rect id="r-cyc" x="220" y="10" width="60" height="30" fill="url(#cyc-a)"/>
+</svg>

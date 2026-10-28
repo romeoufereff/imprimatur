@@ -1,0 +1,6 @@
+{
+  "deck": "Co-brand lockup regression fixture",
+  "motion": {"enabled": false},
+  "cobrand": {"logo": "assets/client-logo.png", "position": "left"},
+  "slides": []
+}

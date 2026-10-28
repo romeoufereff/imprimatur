@@ -31,10 +31,10 @@ def build(config_path, out_svg_path=None):
         ty = cy + dir_ * 40
         body.append(text.label(ex, ty, e["date"], 15, color=color, weight="700"))
         body.append(text.label(ex, ty + dir_*22, e["title"], 14,
-                    color="#333", weight="600"))
+                    color=presets.BODY, weight="600"))
         if e.get("desc"):
             body.append(text.label(ex, ty + dir_*42, e["desc"], 11,
-                        color="#777", weight="400"))
+                        color=presets.MUTED, weight="400"))
 
     doc = canvas.svg(cfg["width"], cfg["height"], "", "".join(body),
                      bg=cfg.get("background", "#ffffff"))

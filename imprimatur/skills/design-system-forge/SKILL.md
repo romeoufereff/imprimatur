@@ -1,12 +1,13 @@
 ---
 name: design-system-forge
 description: |
-  Turns a client's brand deck (.pptx/.potx) or brand-guidelines PDF into a design-system
-  pack the deck pipeline can drive — tokens traced to evidence, seed templates, an off-brand
-  fixture. Use whenever a new brand must enter the pipeline or someone asks what a brand's
-  real tokens are: "build a design system for this client", "extract the brand from this
-  deck", "pull the palette out of this PDF", or a client sending a PPTX/PDF and asking for
-  slides "in their style". Not for building a deck — it produces the pack a deck consumes.
+  Turn a client's brand deck (.pptx/.potx) or brand-guidelines PDF into a complete, working
+  design-system pack — design-system.json, a Tailwind token config, slide-base.html, seed
+  templates, and an off-brand regression fixture — with every token backed by evidence from
+  the source file rather than guessed. Also handles the other half of a pack's life: AMENDING
+  one that already exists on disk in HTML form — re-theming it, migrating its type scale,
+  fixing an inaccessible token, toggling a rule, or auditing it for drift between the
+  canonical tailwind.config.js and what its templates actually ship.
 license: MIT for the pipeline logic; the design-system pack it drives carries its own terms — see LICENSE.md
 metadata:
   author: Roman Iuferev
@@ -119,6 +120,13 @@ satisfy it — `references/pack-contract.md` lists what data each of the 18 rule
 Set `licensing.assetsRedistributable` honestly. Client fonts and logos are almost never
 redistributable, and the pack is the natural place to say so.
 
+The emitted manifest carries a `motion` block (contract 1.1 — how the brand *moves*: entrance
+budget, transition, and which classes are eyebrows / numbers so the engine's choreographer
+can read a slide). It is a derived default unless the brand states a motion language — if the
+guidelines have one (durations, easing, "no bouncing"), put it in `decisions.json` →
+`motion`; if the brand must never animate, `"motion": false`. `references/pack-contract.md`
+§ Motion has the fields.
+
 ### 5 · Verify — the acceptance test
 
 ```bash
@@ -138,7 +146,10 @@ This checks the pack against the contract on its own, then runs that engine's `v
 - `off-brand-fixture.html` **fails**, and fails on the rules it was built to trip
 
 A fixture that passes means the pack cannot defend itself; go back and find out which rule is
-toothless. Report both outcomes with the actual counts. Never report a pack as done on the
+toothless. Report both outcomes with the actual counts. Then run `audit_pack.py --pack <pack>`
+once: it checks the pack against itself (inline configs vs `tailwind.config.js`, token-name
+collisions, raw hexes and sizes outside the token system) — the drift check that `verify_pack.py`
+does not do. Never report a pack as done on the
 strength of the templates alone — that is exactly the half-measure this skill exists to prevent.
 
 ## What to hand back
@@ -157,3 +168,108 @@ Say so early and offer the honest options — forge a partial pack and mark the 
 better source (a `.potx`, the brand guidelines, a link to their site), or supplement from the
 brand's live site. Do not quietly pad a thin pack with defaults; a pack that claims more than it
 knows will be trusted, and that is worse than an obviously incomplete one.
+
+## Amending an existing pack
+
+Most of a pack's life happens after it is forged. Tokens get corrected, a scale turns out too
+small, a brand refreshes one colour, a new rule needs to bite. This is a different job from
+forging: there is no fresh artefact to probe, evidence already lives in the pack itself
+(`PROVENANCE.md`, the manifest, the templates as-shipped), and the risk is no longer "wrong
+guess" but **drift** — the canonical files say one thing and some of the pack's own consumers
+quietly say another.
+
+The same rule from the top of this document still governs: *never mint a token without
+evidence.* Here "evidence" usually means the pack's own history (what `PROVENANCE.md` already
+says, what `design-system.json.version` implies) rather than a probe, but the discipline is
+identical — say what changed and why, in one line with numbers, before touching files.
+
+### 0 · Establish a baseline
+
+Before changing anything, run both checks against the pack as it stands:
+
+```bash
+python3 "{PLUGIN}/skills/design-system-forge/scripts/verify_pack.py" --pack "<pack>/"
+python3 "{PLUGIN}/skills/design-system-forge/scripts/audit_pack.py" --pack "<pack>/"
+```
+
+`verify_pack.py` tells you whether the pack currently meets its own contract.
+`audit_pack.py` tells you whether the pack is internally consistent: whether
+every template's inline config still matches `tailwind.config.js`, whether any token name
+collides across Tailwind categories, whether raw hex values or undersized text have crept into
+templates outside the token system. **Run this before you start, not just after** — a pack can
+carry pre-existing drift that has nothing to do with your change, and attributing it to your
+edit wastes time on both ends.
+
+### 1 · Name the change and its evidence
+
+Say in one line what is changing and why, exactly as the forge workflow does for a fresh probe:
+*"raising `muted` from #9A9A9A to #6A6A6A — the shipped value is 2.8:1 on the surface token and
+fails AA; darkened until 4.6:1"*, or *"adding a `deep` role for gradient chrome — the brand
+refresh deck (`2026-refresh.pptx`) declares one new theme colour, `#0C1E3A`, used on 9 of 14
+slides."* If the change is a pure design decision with no new source (a scale bump because
+reviewers keep saying slides look sparse, a rule toggle because a brand constraint turned out
+not to exist) — say that plainly too. It is still a decision worth a sentence, not silence.
+
+Read `references/amendment-patterns.md` before editing anything nontrivial. It generalises the
+recurring ways an HTML pack like this one breaks under a change that looks correct in isolation
+— token names colliding across Tailwind categories, a token-only fix that never reaches the
+templates that hardcode the old value, flexbox and SVG traps that turn a passing mechanical
+check into a slide that still looks wrong. Most costly amendment mistakes are on that list
+already; five minutes there is cheaper than finding out from a client review.
+
+### 2 · Change the canonical files first
+
+`design-system.json` and `tailwind.config.js` are the source of truth; `slide-base.html`'s
+inline config is a copy of the latter. Change these three before touching a single template.
+This ordering exists because of a specific, measured failure mode: a scale can be raised in the
+tokens while every template keeps its own hardcoded `text-[Npx]`, so the config technically
+says the right thing and nothing downstream changes — see the "token-only change" section of
+`references/amendment-patterns.md` for the full story and how large that gap got in practice.
+
+If you are editing the inline `tailwind.config = {…}` block inside an HTML file by hand (rather
+than regenerating it), do not anchor a regex replacement on a specific brace pattern —
+indentation varies between files and a mismatched anchor deletes the wrong closing brace
+silently, taking a whole sibling block with it. Match braces properly, or edit through a real
+parse of the block, and diff the `{`/`}` counts before and after as a cheap sanity check.
+
+### 3 · Propagate to every consumer
+
+A pack's consumers are not only `templates/*.html`. Anything a deck designer is told to copy
+verbatim from — `charts/`, `snippets/`, worked examples in `references/templates/` — carries the
+same tokens and rots the same way if skipped, and usually rots *silently* because nothing
+outside `templates/` is gated by default. Grep the whole pack for the old value, not just the
+directory you meant to change:
+
+```bash
+grep -rn "9A9A9A" "<pack>/" --include='*.html' --include='*.js'
+```
+
+Then re-run `audit_pack.py` (§0) — it exists specifically to catch a consumer you forgot, by
+comparing every file's inline config and literal hex/size usage against the canonical files
+rather than trusting that you found them all by eye.
+
+### 4 · Re-verify, measured not eyeballed
+
+```bash
+python3 "{PLUGIN}/skills/design-system-forge/scripts/audit_pack.py" --pack "<pack>/"
+python3 "{PLUGIN}/skills/design-system-forge/scripts/verify_pack.py" --pack "<pack>/"
+```
+
+`audit_pack.py` should come back clean (or only flag pre-existing drift you are not touching).
+`verify_pack.py` must still show templates passing and the fixture failing — an amendment that
+weakens a rule until the fixture stops tripping it is a regression even though nothing
+"failed." If the change touches geometry (a type-scale raise, a spacing token, anything that
+moves text), render before and after and measure the difference — text-box positions, computed
+font sizes, pixel deltas — rather than asking whether it "looks right." A scale raise that only
+changes tokens can pass every mechanical gate and still leave the majority of templates
+visually untouched; the only way to know is to measure what actually rendered.
+
+### 5 · Record the decision
+
+Update `PROVENANCE.md` with the same evidence-and-reasoning line from step 1, bump
+`design-system.json`'s `version`, and if the pack keeps a running log of cross-cutting fixes
+(a `known-issues.md` or similar), add an entry there when the change fixes something that could
+recur — a token collision, a silent-paint trap, a contrast failure. That file is what stops the
+next person (including a future you) from rediscovering the same bug by hand. State plainly, as
+in forging: where the pack is, what changed, what evidence backed it, and the verify/audit
+result — never report an amendment done on the strength of the edit alone.

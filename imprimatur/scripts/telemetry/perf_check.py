@@ -18,6 +18,8 @@ Thresholds (edit here, mirror in TESTING-GUIDE.md):
   auditors          brand-audit ≤ 25 turns, ≤ 2 images · design-crit ≤ 25 turns, ≤ 1 image
   main              0 slide Writes · 0 image Reads · 0 narrative-outline Writes ·
                     0 legacy hook fires · ctx peak ≤ 250 K · spawn prompts ≤ 3 KB
+  reports           every subagent's final report ≤ 4 KB (designers return the
+                    chunk-scoped `log_slide.py --summary --slides A-B`, auditors one table)
   pipeline          first designer spawn → last auditor end ≤ 20 min (when both exist)
 
 Exit 1 if any check fails.
@@ -40,6 +42,7 @@ LIMITS = {
     "design_crit_images": 1,
     "main_ctx_peak": 250_000,
     "spawn_prompt_bytes": 3_000,
+    "report_bytes": 4_096,        # the agent's last text turn — what the orchestrator re-reads every turn after
     "pipeline_min": 20,
 }
 
@@ -102,6 +105,9 @@ def main():
 
     for a in agents[1:]:
         k = a["kind"] or ""
+        if a.get("report_bytes") is not None:
+            check(f"report ≤ {LIMITS['report_bytes'] // 1024} KB [{k.split(':')[-1]}]",
+                  a["report_bytes"] <= LIMITS["report_bytes"], f"{a['report_bytes']} B")
         if "brand-audit" in k:
             check("brand-audit turns ≤ 25", a["turns"] <= LIMITS["brand_audit_turns"], f"{a['turns']}")
             check("brand-audit images ≤ 2", a["images"] <= LIMITS["brand_audit_images"], f"{a['images']}")

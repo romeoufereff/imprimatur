@@ -5,7 +5,9 @@ description: |
   the reviewer's comments and direct edits (annotations.json) back into the slide source.
   The gate before export: nothing ships while a comment is open. Trigger on "let me review
   the slides", "open the review page", "apply my annotations", "can I move/resize that
-  myself", or when a deck reaches its review round.
+  myself", or when a deck reaches its review round. Also the foreign-deck mode: design
+  review, restyle and QA of a single-file HTML deck someone else built ("critique this
+  colleague's deck", "restyle this presentation into our pack").
 license: MIT for the pipeline logic; the design-system pack it drives carries its own terms — see LICENSE.md
 metadata:
   author: Roman Iuferev
@@ -372,3 +374,29 @@ orchestrator (assembles deck, owns the gate)
 
 You don't decide the deck is done — the user does, by clearing their comments. You make their
 comments real, keep the deck on-brand, and hold the line on the PDF gate.
+
+## Motion decks
+
+A deck choreographed at §7b (`deck-motion`) reviews **frozen in its end state**: `build_review.py`
+stamps every slide with the static flag, so comments and direct edits target the finished
+picture, not a frame of the entrance. The toolbar shows **▶ Play** on such slides for a one-off
+replay; the slide returns to its end state by itself. Direct edits that change the body make the
+slide's motion spec STALE — after `apply_edits.py` promotes them, re-run
+`choreograph.py --deck-dir D --files <touched>` before `qa.py`; the orchestrator's §7b notes
+(`skills/imprimatur/references/motion.md`) have the rest.
+
+## Foreign decks
+
+A deck that is not an imprimatur folder — one HTML file with every slide and its own slide
+engine, usually a colleague's — gets the same judgment through a different loop, in
+`references/foreign-deck.md`: render every slide fully revealed (`scripts/render_deck.py`,
+`--chunk 14`), run `design-crit` in parallel chunks of ≤ 14 PNGs with `FOREIGN DECK` in the
+prompt and no `plan_check.py`/`qa.py`, merge the findings into one file, ask the owner for
+≤ 4 rulings (depth, what the accent means, layout only or copy too, cover), rebuild in a
+separate per-slide stylesheet, re-critique once, then QA with `scripts/qa_deck.py` until
+every finding is fixed or accepted with a reason. The reference also lists the CSS traps of
+restyling someone else's stylesheet (id-keyed rules, `:not()`/`:has()` specificity, latent
+`gap`, a wider brand font in fixed boxes and the one type-scale factor, cover geometry,
+class-token stripping, the last `</body>`, `pipefail`, the one short card, padding for new
+cards). Cards are rebuilt from the pack's card templates, never an invented "systematic"
+style, and the owner sees the renders: two critique rounds approved stripe cards the owner rejected.

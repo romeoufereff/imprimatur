@@ -9,14 +9,21 @@ Runs the full mechanical audit on one or more slide files in a single command:
     2. render_checks.py    — ONE Chromium launch for every file: overflow +
                               collisions (every file), paint (bespoke/chart/pipeline
                               visuals, or unconditionally with no deck-state.json),
-                              contrast (always computed; only GATES pass/fail on a
-                              whole-deck run — --deck-dir without --files — or with
-                              --contrast; a --files chunk run reports it but never
-                              fails on it, since it's brand-audit's call, once per
-                              deck, not once per chunk — see --contrast below)
+                              contrast, computed AND pixel-sampled over gradients/
+                              images (`gradient_contrast`); both always computed, both
+                              GATE pass/fail only on a whole-deck run — --deck-dir
+                              without --files — or with --contrast; a --files chunk
+                              run reports them but never fails on them, since it's
+                              brand-audit's call, once per deck, not once per chunk —
+                              see --contrast below. Until 2026-10-06 the sampled rows
+                              were never counted, so a slide could carry
+                              `gradient_contrast[].fail: true` and still `pass: true`.
     3. optional WebKit render via deck-review/scripts/render.py (--render)
 
-render_checks.py also runs logo geometry (when the pack declares a `logo` spec) and
+render_checks.py also runs the diagram checks (check_diagram.py: text leaving its box,
+connectors through text, arrow tips, connector contrast, accent stripes, uneven card rows, and the
+slide's diagram `vocabulary`, which gates only under rules.enforceDiagramVocabulary), logo
+geometry (when the pack declares a `logo` spec) and
 pixel-sampled contrast for text over gradients/images, and memoises every result in
 <deck>/.qa-cache.json by content hash — so the stop gate, the orchestrator's whole-deck
 run and brand-audit's run cost ~0 s for files that have not changed (--no-cache to force).
@@ -176,6 +183,9 @@ def main():
             "validate": validate_results,
             "render_checks": render_checks.to_jsonable(render_results),
             "total_failures": total_fails,
+            "gradient_contrast_fails": sum(int(e.get("gradient_contrast_fails") or 0)
+                                           for e in render_results.values()),
+            "contrast_counted": count_contrast,
             "pass": total_fails == 0,
         }
         print(jsonlib.dumps(out, indent=2, ensure_ascii=False))

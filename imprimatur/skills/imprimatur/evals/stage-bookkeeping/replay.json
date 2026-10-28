@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "Regression fixture for log_slide.py --deviation (1.6.5), graded by `run_evals.py bookkeeping`.",
+    "design-decisions.md mirrors the shape of a finished deck's file (Deviations out of slide",
+    "order, §/→/· in the notes, one line per slide), with brand-neutral text. The grader copies",
+    "it to a temp deck and replays `calls` — the revision-round designer's own calls from the",
+    "2026-10-23 exec briefing, which passed --append for its 'Audit r1: …' notes on slides 7",
+    "and 8 and left each slide with two Deviations lines — then requires every slide to keep",
+    "exactly one line, each replayed note to be on its slide's line, the slide's earlier story",
+    "to be kept when --append was passed and gone when it was not, and every other line of the",
+    "file to be byte-identical."
+  ],
+  "calls": [
+    {"n": 7, "file": "07-one-loop.html", "template": "17-orbital-methodology", "visual": "bespoke",
+     "focal": "Infinity loop crossing at the Contract node", "status": "revised", "append": true,
+     "deviation": "Audit r1: BMAD expanded on first use; centre subline dropped (duplicated legend); 20px muted 'agent drafts · person approves' under Contract, agreeing with slide 11"},
+    {"n": 8, "file": "08-change-gates.html", "template": "38-table", "visual": "none",
+     "focal": "Every gate is a person", "status": "revised", "append": true,
+     "deviation": "Audit r1: ladder note reworded (certified check = final sign-off over the three levels, source-notes §3); gate cell now 'Consumer notice'"},
+    {"n": 3, "file": "03-why-now.html", "template": "03-two-column", "visual": "none",
+     "focal": "Meaning has no owner", "status": "revised", "append": false,
+     "deviation": "Review r2: whole story in one line — split title kept, rows from §8, proof panel → meaning has no owner"},
+    {"n": 6, "file": "06-control-plane.html", "template": "05-section-divider-panel", "visual": "none",
+     "focal": "Nothing changes silently", "status": "revised", "append": true,
+     "deviation": "Audit r1: section numeral removed (no other divider is numbered)"}
+  ]
+}

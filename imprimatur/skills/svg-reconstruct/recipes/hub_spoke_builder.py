@@ -18,7 +18,7 @@ def build(config_path, out_svg_path=None):
         body.append(f'<line x1="{cx}" y1="{cy}" x2="{px:.1f}" y2="{py:.1f}" '
                     f'stroke="{cfg.get("line_color",presets.RULE)}" stroke-width="3"/>')
 
-    hub_grad = cfg["hub"].get("gradient") or [presets.ACCENT, presets._shade(presets.ACCENT, -0.25)]
+    hub_grad = cfg["hub"].get("gradient") or [st[1] for st in presets.HUB_GRADIENT_STOPS]
     defs.append(grad.radial("hubg", [["0%", hub_grad[0], 1], ["100%", hub_grad[1], 1]],
                             fx="35%", fy="35%"))
     defs.append(grad.drop_shadow("hubSpokeShadow", dy=6, blur=10, opacity=0.18))

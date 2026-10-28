@@ -9,18 +9,23 @@ judgment row — auditors rendered slides and eyeballed luminance (2026-09-07
 audit). The position-dependence is exactly what a pixel sample resolves:
 
   1. collect every element with direct text whose background stack contains a
-     gradient/image (the same walk check_contrast.py does), with its rect and
-     text colour;
+     gradient/image (check_contrast.BG_STACK_JS: ancestors and sibling layers painted
+     under the text), with its rect and text colour;
   2. make the element's own text transparent, screenshot its rect, restore;
+     SVG <text> is collected too (check_contrast skips SVG entirely, so bespoke-SVG
+     slides had no contrast coverage at all — 2026-10-01); its rendered size is
+     font-size x the screen CTM scale;
   3. luminance of every sampled pixel → the darkest and lightest background
      the text sits on → the WORST ratio against the text colour.
 
 A worst-case ratio below the WCAG threshold (4.5:1, or 3:1 for large text) is
 flagged with a number, not a "verify manually" note. It is a *sampled* measure
-(the middle band of the element, text hidden), so render_checks reports it in
-the JSON as `gradient_contrast` for brand-audit to judge — it never gates a
-designer chunk or the orchestrator's run on its own. Elements marked
-`data-decor-text="ok"` are skipped (decorative glyphs), as in check_contrast.
+(the middle band of the element, text hidden). render_checks reports it in the
+JSON as `gradient_contrast` and, since 2026-10-06, counts every `fail` row into
+the slide verdict under the same scoping as computed contrast: the orchestrator's
+whole-deck run (and --contrast) gates on it, a designer's --files chunk run only
+reports it. Elements marked `data-decor-text="ok"` are skipped (decorative
+glyphs), as in check_contrast.
 
 Exposes analyze_page(page) → list of dicts:
     {"tag","text","ratio_worst","ratio_best","need","fail","fontSize","fontWeight"}
@@ -36,6 +41,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from check_contrast import BG_STACK_JS, PROBE_ON_JS  # noqa: E402  (one stack walk for both)
 
 COLLECT_JS = """
 () => {
@@ -46,6 +52,7 @@ COLLECT_JS = """
     const m = (c || '').match(/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?\\)/);
     return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]] : null;
   };
+""" + BG_STACK_JS + PROBE_ON_JS + """
   const out = [];
   let idx = 0;
   for (const el of slide.querySelectorAll('*')) {
@@ -60,18 +67,9 @@ COLLECT_JS = """
     if (!col || col[3] === 0) continue;
     if ((cs.webkitBackgroundClip || cs.backgroundClip) === 'text') continue;
     if (el.closest('[data-decor-text="ok"]')) continue;
-    let bgImage = false, node = el;
-    while (node && node.nodeType === 1) {
-      const ncs = node === el ? cs : getComputedStyle(node);
-      if (ncs.backgroundImage && ncs.backgroundImage !== 'none') { bgImage = true; break; }
-      const pb = getComputedStyle(node, '::before').backgroundImage;
-      const pa = getComputedStyle(node, '::after').backgroundImage;
-      if ((pb && pb !== 'none') || (pa && pa !== 'none')) { bgImage = true; break; }
-      const b = parse(ncs.backgroundColor);
-      if (b && b[3] >= 1) break;
-      if (node === slide) break;
-      node = node.parentElement;
-    }
+    if (el.closest('[class*="sr-only"]:not(.not-sr-only), [class*="visually-hidden"]')) continue;   // screen-reader-only text
+    // same stack check_contrast defers on: ancestors and any sibling layer under the text
+    const { bgImage } = bgStackOf(el, cs, slide, parse);
     if (!bgImage) continue;
     el.setAttribute('data-gradient-probe', String(idx));
     out.push({
@@ -83,6 +81,34 @@ COLLECT_JS = """
     });
     idx++;
   }
+  // SVG text (bespoke diagrams): check_contrast skips it entirely — fill-based colour,
+  // and whatever sits underneath is another SVG shape computed styles cannot see. The
+  // pixel sample is the only honest measure. Rendered size = font-size x the CTM scale.
+  for (const el of slide.querySelectorAll('svg text')) {
+    if (el.closest('[data-decor-text="ok"], [data-client-logo="ok"]')) continue;
+    if (!(el.textContent || '').trim()) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const col = parse(cs.fill);
+    if (!col) continue;                                  // url(#gradient) fill — no single colour
+    const fo = parseFloat(cs.fillOpacity), op = parseFloat(cs.opacity);
+    if ((isFinite(fo) && fo < 1) || (isFinite(op) && op < 1)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const ctm = el.getScreenCTM();
+    const k = ctm ? Math.sqrt(Math.abs(ctm.a * ctm.d - ctm.b * ctm.c)) : 1;
+    el.setAttribute('data-gradient-probe', String(idx));
+    out.push({
+      idx, tag: 'svg-text', svg: true,
+      text: (el.textContent || '').trim().slice(0, 50),
+      color: col,
+      x: r.left, y: r.top, w: r.width, h: r.height,
+      fontSize: Math.round(parseFloat(cs.fontSize) * k * 10) / 10,
+      fontWeight: parseInt(cs.fontWeight, 10) || 400,
+    });
+    idx++;
+  }
+  probeStyle.remove();
   return { items: out, vw: window.innerWidth, vh: window.innerHeight };
 }
 """
@@ -94,6 +120,13 @@ HIDE_JS = """
   // Hide the text of the element AND its descendants (child spans, icons, badges keep
   // their own colour otherwise and pollute the background sample).
   const els = [root, ...root.querySelectorAll('*')];
+  if (root instanceof SVGElement) {          // SVG text paints with fill, not color
+    for (const el of els) {
+      if (on) { el.__f = el.style.fill; el.__s = el.style.stroke; el.style.fill = 'transparent'; el.style.stroke = 'none'; }
+      else { el.style.fill = el.__f || ''; el.style.stroke = el.__s || ''; }
+    }
+    return;
+  }
   for (const el of els) {
     if (on) {
       el.__c = el.style.color; el.__wc = el.style.webkitTextFillColor; el.__ts = el.style.textShadow;
@@ -142,7 +175,9 @@ def analyze_page(page):
     out = []
     vw, vh = res["vw"], res["vh"]
     for it in items:
-        ix, iy = it["w"] * INSET_X, it["h"] * INSET_Y
+        # SVG text boxes are glyph-tight: the "middle band" would be all glyph and no
+        # background, so sample the whole box (the text itself is hidden anyway)
+        ix, iy = (0, 0) if it.get("svg") else (it["w"] * INSET_X, it["h"] * INSET_Y)
         x = max(0, int(it["x"] + ix))
         y = max(0, int(it["y"] + iy))
         w = max(1, min(int(it["w"] - 2 * ix), vw - x))
@@ -168,9 +203,15 @@ def analyze_page(page):
         worst, best = min(r_dark, r_light), max(r_dark, r_light)
         large = it["fontSize"] >= 24 or (it["fontSize"] >= 18.66 and it["fontWeight"] >= 700)
         need = 3.0 if large else 4.5
-        out.append({"tag": it["tag"], "text": it["text"], "ratio_worst": round(worst, 2),
-                    "ratio_best": round(best, 2), "need": need, "fail": worst < need - 0.005,
-                    "fontSize": it["fontSize"], "fontWeight": it["fontWeight"]})
+        row = {"tag": it["tag"], "text": it["text"], "ratio_worst": round(worst, 2),
+               "ratio_best": round(best, 2), "need": need, "fail": worst < need - 0.005,
+               "fontSize": it["fontSize"], "fontWeight": it["fontWeight"]}
+        if it.get("svg"):
+            row["svg"] = True
+            # a flat background (one SVG shape under the label) makes the sample exact —
+            # render_checks counts those like a computed-style contrast FAIL
+            row["uniform"] = (max(lums) - min(lums)) < 0.02
+        out.append(row)
     return out
 
 

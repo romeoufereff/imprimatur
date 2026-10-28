@@ -23,7 +23,7 @@ filesystem search. If `DECK` reads `<unset>`, take the deck folder from your pro
 ```bash
 cat  "$DECK/deck-brief.md"                                                  # dials, anti-references, voice
 python3 "$PLUGIN/scripts/log_slide.py" --deck-dir "$DECK" --locked             # Locked choices only (≤ 600 B)
-python3 "$PLUGIN/scripts/pack_brief.py"                                     # pack essentials, ~2 KB
+python3 "$PLUGIN/scripts/pack_brief.py" --no-templates                      # pack essentials, ≤ 3 KB (your templates are locked in the plan — never the 7 KB template index)
 python3 "$PLUGIN/scripts/narrative_brief.py" --deck-dir "$DECK" --slides 6-10  # ONLY your chunk's SLIDE BRIEFs
 ```
 
@@ -99,21 +99,29 @@ rows + cards + chart bars + people + labelled SVG nodes: sparse ≤ 8 / balanced
 dense ≤ 14; bullets per column ≤ 4 / 5 / 6) — over budget is an escalation, **never a
 smaller font** · gradient text ≤ 3 words, last words of the title · no status colour as a
 fill or border · acronyms expanded on first use · paired rows across two columns share one
-grid (`design-craft.md` § Layout rules) · no named tell you can see (card-in-card,
-decorative-only icons, gradient on a whole sentence — `references/anti-slop-tells.md`).
+grid (`design-craft.md` § Layout rules) · cards built the way the pack's card templates
+build them (fill, border, radius), never a coloured top or left stripe · diagram vocabulary:
+at most three panel styles,
+one connector colour (dashed `muted` for exception paths), the accent colour means one thing,
+a box's fill follows its legend, flow-node text top-aligned · no named tell you can see
+(card-in-card, decorative-only icons, gradient on a whole sentence, accent with two meanings,
+decorative dash marks — `references/anti-slop-tells.md`).
 
 **6 · Log it — one call, no prose:**
 
 ```bash
 python3 "$PLUGIN/scripts/log_slide.py" --deck-dir "$DECK" --n N --template <stem> \
   --visual none|chart|pipeline|bespoke --focal "<≤ 12 words>" --status written \
-  [--decision "key=value"] [--deviation "<one line>"]
+  [--decision "key=value"] [--deviation "<one line>" [--append]]
 ```
 
 Upserts the slide's row in `design-decisions.md` and `slides[N]` in `deck-state.json`
 under a file lock (other chunks are writing concurrently). `--decision` only for a genuinely
 new cross-slide choice (rare — accent and templates are locked by the orchestrator);
 `--deviation` for a full Write, a template you had to swap on escalation, or a content cut.
+Re-logging a slide with `--deviation` **replaces** its Deviations line — so after an
+audit round write the slide's whole current story in that one line, not the round's delta;
+`--append` folds a note into the same line (`<old>; <new>`). A slide has one line, always.
 
 Then the next slide. **No per-slide report in chat.**
 
@@ -123,7 +131,10 @@ Then the next slide. **No per-slide report in chat.**
 python3 "$PLUGIN/scripts/qa.py" --deck-dir "$DECK" --files NN-a.html NN-b.html … --json
 ```
 
-One browser launch for the whole chunk: overflow + collision on every slide; logo geometry
+One browser launch for the whole chunk: overflow + collision (text over a logo counts) and
+SVG sizing (`svg_sizing`: an SVG flex-squashed below its written size, or SVG text rendering
+under the pack's font floor — give the SVG `shrink-0` or cut what crowds it; never shrink
+labels to fit) on every slide; logo geometry
 and gradient-contrast sampling where the pack declares them; the paint check (an unpainted
 fill = a dropped `<defs>` = an invisible gradient) on slides logged
 `chart`/`pipeline`/`bespoke`. Fix any FAIL with `Edit`s, re-run `qa.py` **on the touched
@@ -139,11 +150,12 @@ cannot place from the JSON. Never render a verbatim-template slide.
 **Your report is:**
 
 ```bash
-python3 "$PLUGIN/scripts/log_slide.py" --deck-dir "$DECK" --summary
+python3 "$PLUGIN/scripts/log_slide.py" --deck-dir "$DECK" --summary --slides 6-10   # YOUR chunk's numbers
 ```
 
-pasted verbatim, plus any escalations (below). Nothing else — no per-slide narrative, no
-framework notes, no self-check checklist.
+pasted verbatim (Locked block + your slides' rows + your deviations — never the whole file;
+the orchestrator reads that once itself), plus any escalations (below). Nothing else — no
+per-slide narrative, no framework notes, no self-check checklist.
 
 ## Escalations (report early if one blocks the slides after it)
 

@@ -26,6 +26,22 @@ Every item, every time:
    (`new_slide.py --page N` on re-created slides; an `Edit` on the footer otherwise).
 3. Re-run `assemble_deck.py` — it regenerates the `slides` array and `slide_count`.
 4. `qa.py --deck-dir D --files <touched> --json`; at export, PDF page count must equal `slide_count`.
+5. If the deck has motion (`deck-state.json` → `motion.enabled`): `choreograph.py --deck-dir D
+   --files <touched>` — a body edit leaves that slide's spec STALE and `qa.py` fails it until
+   re-choreographed (`references/motion.md`).
+
+## Phase 7b — choreography (only when `motion.enabled`)
+
+```bash
+python3 {PLUGIN}/scripts/choreograph.py --deck-dir D            # one browser launch, every slide
+python3 {PLUGIN}/scripts/choreograph.py --deck-dir D --summary  # one line per slide
+```
+
+Runs after assembly and after §5–6 are clear. Injects an insert-only block into each slide's
+`<head>` (spec + `motion/motion.js`), writes `motion/motion.json`. The runtime is a no-op under
+Playwright, so §8's `qa.py`, the PDF and the PPTX see the static slide; `qa.py` additionally
+fails any slide whose animated end state is not pixel-identical to it. Full reference:
+`references/motion.md`. A deck without the §1 opt-in never reaches this section.
 
 ## Phase 8 — preview is a server and one summary, not a re-verification
 

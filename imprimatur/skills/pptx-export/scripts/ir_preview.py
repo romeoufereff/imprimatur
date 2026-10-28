@@ -94,7 +94,13 @@ def ir_to_html(ir):
         pos = f'position:absolute;left:{r["x"]}px;top:{r["y"]}px;width:{r["w"]}px;height:{r["h"]}px;'
         if n['kind'] == 'box':
             css = pos + 'box-sizing:border-box;'
-            if n.get('gradientCss'):
+            if n.get('gradient'):
+                # from the IR stops the builder writes (per-shape slice of a continuous
+                # gradient included) — NOT the source CSS, which would hide that defect
+                g = n['gradient']
+                stops = ', '.join(f'{st_["color"]} {st_["pos"]}%' for st_ in g['stops'])
+                css += f'background:linear-gradient({g["angle"]}deg, {stops});'
+            elif n.get('gradientCss'):
                 css += f'background:{n["gradientCss"]};'
             elif n.get('fill'):
                 a = n.get('fillAlpha', 1)
@@ -116,8 +122,13 @@ def ir_to_html(ir):
         elif n['kind'] == 'text':
             align = n.get('align', 'left')
             anchor = n.get('anchor', 'top')
-            wrap = (pos + f'text-align:{align};display:flex;flex-direction:column;'
-                    + ('justify-content:center;' if anchor == 'middle' else '')
+            ins = n.get('insets') or {}
+            # insets + anchor exactly as the builder writes them (bodyPr l/t/r/b, anchor)
+            wrap = (pos + 'box-sizing:border-box;'
+                    + f'padding:{ins.get("t", 0)}px {ins.get("r", 0)}px {ins.get("b", 0)}px {ins.get("l", 0)}px;'
+                    + f'text-align:{align};display:flex;flex-direction:column;'
+                    + {'middle': 'justify-content:center;',
+                       'bottom': 'justify-content:flex-end;'}.get(anchor, '')
                     + 'overflow:visible;white-space:nowrap;')
             # group runs into paragraphs (mirrors the builder), each with its own
             # line-height from its runs
@@ -158,6 +169,17 @@ def ir_to_html(ir):
                         s += f'letter-spacing:{st["spacing"]}px;'
                     spans.append(f'<span style="{s}">{_esc(run["text"])}</span>')
                 lh_css = f'line-height:{lh}px;' if lh else 'line-height:normal;'
+                # The line container's own font sets the line's STRUT. Left at the
+                # browser default (16px serif) its ascent/descent sits on a different
+                # baseline from the runs' and inflates every line past `lh` — a
+                # preview-only artefact that scored slide 15 of the 2026-10-01 deck
+                # 54.8. PowerPoint has no strut: give the container the paragraph's
+                # largest run font so the strut matches the dominant glyphs.
+                big = max((r_['st'] for r_ in para_runs if r_.get('st')),
+                          key=lambda st_: st_.get('size', 0), default=None)
+                if big:
+                    lh_css += (f"font-family:'{_PREVIEW_FONT}';font-size:{big['size']}px;"
+                               f"font-weight:{big['weight']};")
                 para_html.append(f'<div style="{lh_css}">{"".join(spans)}</div>')
             parts.append(f'<div style="{wrap}">{"".join(para_html)}</div>')
     return ('<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
@@ -224,17 +246,21 @@ def main():
     ap.add_argument('ir', nargs='?', help='single IR JSON')
     ap.add_argument('--original', help='original slide HTML (single mode)')
     ap.add_argument('--deck-dir', help='deck mode: previews every IR in <deck>/.pptx-ir')
+    ap.add_argument('--ir-dir', default=None,
+                    help='deck mode: IR folder when the export used html2pptx --ir-dir '
+                         '(default <deck>/.pptx-ir)')
     ap.add_argument('--out-dir', default=None)
     args = ap.parse_args()
 
     jobs = []
     if args.deck_dir:
         deck = os.path.abspath(args.deck_dir)
-        for irp in sorted(globmod.glob(os.path.join(deck, '.pptx-ir', '[0-9]*.json'))):
+        ir_dir = os.path.abspath(args.ir_dir) if args.ir_dir else os.path.join(deck, '.pptx-ir')
+        for irp in sorted(globmod.glob(os.path.join(ir_dir, '[0-9]*.json'))):
             src = json.load(open(irp)).get('source')
             if src and os.path.isfile(src):
                 jobs.append((irp, src))
-        out_dir = args.out_dir or os.path.join(deck, '.pptx-ir', 'preview')
+        out_dir = args.out_dir or os.path.join(ir_dir, 'preview')
     else:
         if not (args.ir and args.original):
             sys.exit('need IR + --original, or --deck-dir')

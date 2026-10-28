@@ -21,7 +21,7 @@ def build(config_path, out_svg_path=None):
             fill = c.get("color", "#ffffff")
         body.append(f'<path d="{g.rounded_rect(x, y, cw, ch, corner)}" '
                     f'fill="{fill}" filter="url(#cardshadow)"/>')
-        tcol = c.get("text_color", "#fff" if "stops" in c else "#333")
+        tcol = c.get("text_color", "#fff" if "stops" in c else presets.BODY)
         if c.get("icon"):
             body.append(icons.place(c["icon"], x+34, y+34, 28, color=tcol))
         body.append(text.label(x+24, y+ch*0.5, c["value"], 34, color=tcol,

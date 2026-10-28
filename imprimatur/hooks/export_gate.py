@@ -39,6 +39,30 @@ def _looks_like_deck(path):
     return any(e in entries for e in ("deck-state.json", "deck-metadata.json", "annotations.json"))
 
 
+def _base_dir(payload, tokens):
+    """The directory relative paths in the command resolve against.
+
+    The hook process does NOT run in the Bash tool's working directory, so
+    os.path.abspath('.') here pointed at whatever folder the hook happened to start in —
+    `cd <deck> && html2pptx.py --deck-dir .` was blocked with "annotations.json does not
+    exist" for a deck that had one (2026-10-01). Resolution order: the session cwd from
+    the hook payload (Claude Code's contract), then any `cd <dir>` earlier in the same
+    command, applied in sequence the way the shell would."""
+    base = payload.get("cwd") or os.getcwd()
+    for i, tok in enumerate(tokens):
+        if tok == "cd" and i + 1 < len(tokens):
+            nxt = os.path.expanduser(tokens[i + 1])
+            if not nxt.startswith("-") and nxt not in ("&&", ";", "||"):
+                base = os.path.normpath(os.path.join(base, nxt))
+        elif any(s in tok for s in EXPORT_SCRIPTS):
+            break   # a cd AFTER the export command cannot affect it
+    return base
+
+
+def _resolve(base, path):
+    return os.path.normpath(os.path.join(base, os.path.expanduser(path)))
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
@@ -56,10 +80,14 @@ def main():
     except ValueError:
         return 0
 
+    base = _base_dir(payload, tokens)
     deck_dir = None
     for i, tok in enumerate(tokens):
         if tok == "--deck-dir" and i + 1 < len(tokens):
-            deck_dir = tokens[i + 1]
+            deck_dir = _resolve(base, tokens[i + 1])
+            break
+        if tok.startswith("--deck-dir="):
+            deck_dir = _resolve(base, tok.split("=", 1)[1])
             break
 
     # build_pptx.py takes IR paths, not --deck-dir, and batch_convert can be pointed at
@@ -69,7 +97,7 @@ def main():
     if not deck_dir:
         for i, tok in enumerate(tokens):
             if tok in ("--output", "-o") and i + 1 < len(tokens):
-                cand = os.path.dirname(os.path.abspath(tokens[i + 1]))
+                cand = os.path.dirname(_resolve(base, tokens[i + 1]))
                 if _looks_like_deck(cand):
                     deck_dir = cand
                 break

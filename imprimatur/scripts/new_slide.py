@@ -14,9 +14,13 @@ What it does:
   2. Localises any `@font-face url(...)` references to `fonts/<file>` and
      copies the referenced font files into `<deck-dir>/fonts/` (per file, at
      creation — there is no whole-deck rescan any more).
-  3. Sets the footer page number (the `<span class="font-bold">N</span>` next
-     to the confidentiality footer text), when the template carries one — some
-     templates (covers, section dividers) deliberately have none.
+  3. Sets the footer page number: the pack's `<span … id="page-number">N</span>`
+     hook wherever it sits, else the bold span right after the confidentiality
+     footer text (`<span class="font-bold">N</span>`), when the template carries
+     one — some templates (covers, section dividers) deliberately have none.
+     Until 2026-10-06 the detector wanted a bare `class="font-bold"` span holding
+     DIGITS, so every template with the `id` hook or the literal `N` placeholder
+     printed "no footer page-number span found" and shipped with `N`.
   4. Refuses to overwrite an existing file unless `--force` (which deletes it
      first, so the Edit that follows never hits Claude Code's "File has not
      been read yet" error on a stale read).
@@ -25,7 +29,12 @@ What it does:
      override, so it is never retyped per slide (one real deck carried the
      same 459-character gradient override as a hand Edit on every slide).
      validate.py's head-identity check tolerates additions.
-  6. Prints the SLOT LIST (every text node / metric / label with its line
+  6. Applies the deck's co-brand lockup when deck-state.json declares
+     `"cobrand": {"logo": "assets/<client>.png", "position": "left"}` (cobrand.py):
+     the client mark goes left of the template's logo, cover sizes on a
+     `templateRoles.cover` template, content sizes elsewhere, white on a white logo.
+     Until 1.6.1 designers pasted a 23 KB base64 wordmark per slide and truncated it.
+  7. Prints the SLOT LIST (every text node / metric / label with its line
      number) and the body's line range — NOT the body itself. Claude Code's
      `Edit` tool requires a prior `Read` of the file, so the designer does one
      ranged `Read` (offset/limit printed here) anyway; printing the body too
@@ -51,14 +60,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ds_config import load  # noqa: E402
+import cobrand  # noqa: E402
 
 FONT_URL_RE = re.compile(r"url\(\s*['\"]?([^'\")]+\.(?:ttf|woff2?|otf))['\"]?\s*\)")
 
-# The footer chrome pattern this pack (and every pack modelled on it) uses: the
-# confidentiality string immediately followed by a bold page-number span. Scoped to
-# text NEAR the footer's required string so it can't misfire on an unrelated bold
-# number elsewhere on the slide.
-PAGE_NUM_RE_TMPL = r'({footer}[^<]*</span>\s*<span class="font-bold">)(\d+)(</span>)'
+# Preferred: the pack's explicit page-number hook, wherever it sits in the chrome.
+# The placeholder is the literal `N` in every template, a number on a re-created slide.
+PAGE_NUM_ID_RE = re.compile(r'(<span\b[^>]*\bid="page-number"[^>]*>)\s*(?:N|\d+)\s*(</span>)')
+# Fallback for packs without the id: the confidentiality string immediately followed
+# by a bold span (any attribute order, `N` or digits inside). Scoped to text NEAR the
+# footer's required string so it can't misfire on an unrelated bold number elsewhere.
+PAGE_NUM_RE_TMPL = (r'({footer}[^<]*</span>\s*<span\b[^>]*\bclass="[^"]*\bfont-bold\b[^"]*"[^>]*>)'
+                    r'\s*(?:N|\d+)\s*(</span>)')
 
 SLOT_TEXT_RE = re.compile(r">\s*([^<>{}][^<>]*?)\s*<")
 
@@ -101,16 +114,30 @@ def localise_fonts(dest_path, ds):
     return changed, copied, unknown
 
 
+def find_page_number_pattern(html, footer):
+    """The compiled pattern that matches this file's page-number span (two groups:
+    opening tag, closing tag), or None when the file has none. The id hook wins;
+    the footer-adjacent bold span is the fallback for packs without it."""
+    if PAGE_NUM_ID_RE.search(html):
+        return PAGE_NUM_ID_RE
+    if footer:
+        pat = re.compile(PAGE_NUM_RE_TMPL.format(footer=re.escape(footer)))
+        if pat.search(html):
+            return pat
+    return None
+
+
 def set_page_number(dest_path, ds, page):
-    """Best-effort: set the footer's bold page-number span to `page`. Returns
-    True if a page-number span was found and set, False if the template has
-    none (covers/dividers legitimately have no page number — not an error)."""
-    footer = ds.get("footer.requiredText")
-    if not footer or page is None:
+    """Best-effort: set the footer's page-number span to `page`. Returns True if
+    a page-number span was found and set, False if the template has none
+    (covers/dividers legitimately have no page number — not an error)."""
+    if page is None:
         return False
     s = open(dest_path, encoding="utf-8").read()
-    pattern = re.compile(PAGE_NUM_RE_TMPL.format(footer=re.escape(footer)))
-    s2, n = pattern.subn(lambda m: f"{m.group(1)}{page}{m.group(3)}", s, count=1)
+    pattern = find_page_number_pattern(s, ds.get("footer.requiredText"))
+    if pattern is None:
+        return False
+    s2, n = pattern.subn(lambda m: f"{m.group(1)}{page}{m.group(2)}", s, count=1)
     if n:
         open(dest_path, "w", encoding="utf-8").write(s2)
         return True
@@ -212,6 +239,15 @@ def main():
     deck_dir = os.path.abspath(args.deck_dir)
     os.makedirs(deck_dir, exist_ok=True)
 
+    # The co-brand declaration is checked BEFORE the copy, so a bad one leaves no half-made slide.
+    try:
+        cb = cobrand.load_decl(deck_dir)
+    except cobrand.CobrandError as e:
+        sys.exit(f"error: {e}")
+    if cb and not os.path.isfile(cb["abs"]):
+        sys.exit(f"error: deck-state.json cobrand.logo {cb['logo']} not found in {deck_dir} — "
+                 f"copy the client's logo there first")
+
     try:
         n_int = int(args.n)
     except ValueError:
@@ -233,6 +269,7 @@ def main():
     page = args.page if args.page is not None else str(n_int)
     got_page = set_page_number(dest_path, ds, page)
     injected = 0 if args.no_overrides else inject_overrides(dest_path, deck_dir)
+    cb_status = cobrand.apply_file(dest_path, cb, ds, args.template) if cb else None
 
     print(f"created {dest_path}  (from {args.template}, {os.path.getsize(dest_path)} bytes)")
     if copied:
@@ -247,6 +284,8 @@ def main():
         print("no footer page-number span found (expected for covers/dividers) — skipped")
     if injected:
         print(f"overrides: injected {injected} bytes from {OVERRIDES_FILE} into <head>")
+    if cb_status:
+        print(f"cobrand: {cobrand.describe(cb_status)} — do not edit the logo row")
 
     start, end = body_range(dest_path)
     print()

@@ -1,0 +1,37 @@
+{
+  "$comment": [
+    "Regression fixture for the co-brand lockup (1.6.1), graded by `run_evals.py cobrand`.",
+    "The grader copies this folder to a temp deck (deck-state.json declares the cobrand;",
+    "assets/client-logo.png is a synthetic, brand-neutral wordmark), creates one slide per",
+    "role below with new_slide.py, and requires (1) every copy to report 'lockup applied',",
+    "(2) a clean qa.py --deck-dir run with no cobrand and no logo findings, then (3) after",
+    "seeding each mutation, exactly one cobrand FAIL per mutated slide containing `expect`,",
+    "and none on the slide left untouched. Templates are picked from the ACTIVE pack by role",
+    "(first templateRoles.cover; the first content templates in name order whose logo is",
+    "dark, and the first whose logo is white), so the fixture follows a pack change instead",
+    "of rotting with it; closing = the pack's templateRoles.closing templates that carry a",
+    "logo, and no clean slide may carry a client mark taller than its pack logo (1.6.5: a",
+    "closing template with the 28 px content mark got the 48 px cover client size). Background: 2026-10-20 a 21-slide client deck carried a hand-pasted",
+    "23 KB base64 wordmark, truncated twice, and qa.py exempted the lockup from measurement."
+  ],
+  "slides": [
+    {"role": "cover",   "mutation": "shrunk",   "expect": "cover lockup wants 48px"},
+    {"role": "content", "mutation": "removed",  "expect": "client mark missing"},
+    {"role": "content", "mutation": "swapped",  "expect": "must sit left of the pack logo"},
+    {"role": "content", "mutation": "broken",   "expect": "does not load"},
+    {"role": "content", "mutation": "lifted",   "expect": "the deck's other content slides sit at"},
+    {"role": "white",   "mutation": "unfiltered", "expect": "pack logo is white here"},
+    {"role": "closing", "mutation": null},
+    {"role": "closing", "mutation": "oversized", "expect": "lockup wants"},
+    {"role": "content", "mutation": null}
+  ],
+  "mutations": {
+    "shrunk":     [["style=\"height:48px;", "style=\"height:30px;"]],
+    "removed":    [["(?s)<div data-cobrand=\"lockup\"[^>]*><img[^>]*>(<svg.*?</svg>)</div>", "\\1"]],
+    "swapped":    [["(?s)(<div data-cobrand=\"lockup\"[^>]*>)(<img[^>]*>)(<svg.*?</svg>)", "\\1\\3\\2"]],
+    "broken":     [["src=\"assets/client-logo.png\"", "src=\"assets/client-logo.pn\""]],
+    "lifted":     [["<div data-cobrand=\"lockup\" style=\"", "<div data-cobrand=\"lockup\" style=\"margin-bottom:30px;"]],
+    "unfiltered": [[";filter:brightness\\(0\\) invert\\(1\\)", ""]],
+    "oversized":  [["(data-cobrand=\"client\" style=\"height:)[0-9.]+px", "\\g<1>96px"]]
+  }
+}

@@ -46,6 +46,8 @@ SLIDE_H = Emu(6858000)     # 7.5 in
 ALIGN = {'left': PP_ALIGN.LEFT, 'center': PP_ALIGN.CENTER,
          'right': PP_ALIGN.RIGHT, 'justify': PP_ALIGN.JUSTIFY}
 
+TEXT_ANCHOR = {'top': MSO_ANCHOR.TOP, 'middle': MSO_ANCHOR.MIDDLE, 'bottom': MSO_ANCHOR.BOTTOM}
+
 A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 SVG_EXT_URI = '{96DAC541-7B7A-4930-B5D3-8C156C88E4B4}'
 
@@ -84,12 +86,58 @@ def font_for_weight(w):
     return _FONT_BY_WEIGHT[-1][1] if _FONT_BY_WEIGHT else "sans-serif"
 
 
+# Every family the pack declares (typography.familyRequiredPattern, e.g. "Century
+# Gothic|Arial"). A run whose computed stack names one of them keeps that face.
+_FAMILY_PATTERN = _DS.get("typography.familyRequiredPattern", "") or ""
+
+
+def font_for(w, family=None):
+    """(font name, bold flag) for a run of weight `w` whose computed CSS font-family
+    stack is `family`.
+
+    The first family in the stack that the pack knows wins. A family the pack's
+    `pptx.fontFamilyByWeight` covers ("Museo Sans" → "Museo Sans 300/500/700") keeps
+    that per-weight full name, so single-family packs keep their faces; any
+    other declared family (a client pack: Century Gothic titles over Arial text) is written
+    by its own name with the weight as the bold flag. Until 1.6.3 the stack was not in
+    the IR and every run took the one per-weight family — Century Gothic titles
+    exported as Arial (2026-10-22). No stack, or no known family in it: per-weight
+    fallback, as before.
+
+    Bold is set only where the name cannot carry the weight: a declared family outside
+    fontFamilyByWeight, or a pack whose bands share one name ({"400": "Arial", "700":
+    "Arial"} — bold Arial exported regular until 1.6.3). Packs with a full name per
+    band (Museo Sans 300/500/700) never get the flag, so they export byte-identically."""
+    for f in (family or '').split(','):
+        f = f.strip().strip('"\'').strip()
+        if not f:
+            continue
+        if any(name == f or name.startswith(f + ' ') for _, name in _FONT_BY_WEIGHT):
+            break
+        if _FAMILY_PATTERN and re.fullmatch(f'(?:{_FAMILY_PATTERN})', f, re.I):
+            return f, w >= 600
+    name = font_for_weight(w)
+    return name, w >= 600 and name == font_for_weight(400)
+
+
 def px(v):
     return Emu(int(round(v * EMU_PER_PX)))
 
 
 def rgb(hexstr):
     return RGBColor.from_string(hexstr.lstrip('#'))
+
+
+def _css_stop_xml(s):
+    """One <a:gs> for a CSS gradient stop from extract_ir.py ({color, pos 0..100, alpha}).
+    A translucent stop keeps its alpha (<a:alpha>), so a fade to transparent — the cover
+    image-slot overlay `#FFF 0% → rgba(255,255,255,0) 100%` — stays a fade in PowerPoint
+    instead of a solid block with a hard edge (the alpha used to be dropped at parse time)."""
+    a = s.get('alpha', 1)
+    a = 1 if a is None else float(a)
+    alpha = f'<a:alpha val="{int(round(a * 100000))}"/>' if a < 0.999 else ''
+    return (f'<a:gs pos="{int(round(s["pos"] * 1000))}"><a:srgbClr val="{s["color"].lstrip("#")}">'
+            f'{alpha}</a:srgbClr></a:gs>')
 
 
 def add_box(slide, node):
@@ -111,8 +159,7 @@ def add_box(slide, node):
         sp.fill.solid()  # creates the fill element in schema position, then replaced
         solid = sp._element.spPr.find(qn('a:solidFill'))
         stops = ''.join(
-            f'<a:gs pos="{int(round(s["pos"] * 1000))}"><a:srgbClr val="{s["color"].lstrip("#")}"/></a:gs>'
-            for s in grad['stops'])
+            _css_stop_xml(s) for s in grad['stops'])
         # CSS Ndeg (0=up, cw) -> DrawingML (0=right, cw, 1/60000 deg): (N-90)%360
         ang = int(round(((grad['angle'] - 90) % 360) * 60000))
         gfill = parse_xml(
@@ -152,16 +199,24 @@ def _apply_para_props(para, node, para_runs):
 
 def add_text(slide, node):
     r = node['rect']
-    # small breathing room so wrapped lines match the HTML box
-    tb = slide.shapes.add_textbox(px(r['x'] - 1), px(r['y'] - 2), px(r['w'] + 4), px(r['h'] + 6))
+    # The textbox IS the element's border box — exact, no slack. (Up to 1.4.2 it was
+    # padded by 1/2 px left/top and 4/6 px in size: breathing room from the wrap-on v1
+    # era. With wrapping off and autofit removed the slack bought nothing and shifted
+    # every centred/right-aligned line by 1–3 px.)
+    tb = slide.shapes.add_textbox(px(r['x']), px(r['y']), px(r['w']), px(r['h']))
     tf = tb.text_frame
     # Wrapping is ALWAYS off: the extractor measured the browser's actual line breaks
     # and emitted them as explicit '\n' runs, so every renderer reproduces the same
     # lines. With wrapping on, a renderer whose font metrics differ by 2% reflows a
     # title into the subtitle below it — the v1 failure mode.
     tf.word_wrap = False
-    tf.vertical_anchor = MSO_ANCHOR.TOP
-    tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+    # Insets = CSS padding + border (or the measured offset when layout, not padding,
+    # placed the text); anchor = where the text block sits vertically — both measured
+    # by extract_ir.py's layoutOf(). Older IR without them keeps the v1 behaviour.
+    tf.vertical_anchor = TEXT_ANCHOR.get(node.get('anchor'), MSO_ANCHOR.TOP)
+    ins = node.get('insets') or {}
+    tf.margin_left, tf.margin_top = px(ins.get('l', 0)), px(ins.get('t', 0))
+    tf.margin_right, tf.margin_bottom = px(ins.get('r', 0)), px(ins.get('b', 0))
     # kill autofit so PPT never rescales the text to the box
     bodyPr = tf._txBody.find(qn('a:bodyPr'))
     for fit in ('a:normAutofit', 'a:spAutoFit'):
@@ -185,9 +240,11 @@ def add_text(slide, node):
             rn = para.add_run()
             rn.text = run['text']
             st = run['st']
-            rn.font.name = font_for_weight(st['weight'])
+            # weight is carried by the per-weight font name; bold only for a pack family
+            # outside fontFamilyByWeight (font_for)
+            rn.font.name, bold = font_for(st['weight'], st.get('family'))
             rn.font.size = Pt(round(st['size'] * PT_PER_PX, 1))
-            rn.font.bold = False      # weight is carried by the per-weight font name
+            rn.font.bold = bold
             rn.font.italic = bool(st.get('italic'))
             rn.font.color.rgb = rgb(st['color'])
             if st.get('accent'):
@@ -195,6 +252,9 @@ def add_text(slide, node):
             if st.get('spacing'):
                 # letter-spacing: a:rPr spc is in 1/100 pt
                 rn.font._rPr.set('spc', str(int(round(st['spacing'] * PT_PER_PX * 100))))
+            if st.get('baseline'):
+                # <sup>/<sub>: a:rPr baseline is in 1/1000 % (30000 = superscript)
+                rn.font._rPr.set('baseline', str(int(round(st['baseline'] * 1000))))
     return tb
 
 
@@ -251,7 +311,7 @@ def add_raster(slide, node, svg_mode='shapes'):
     """Placement of non-text visuals. SVGs become NATIVE GROUPED SHAPES by default
     (svg2shapes: rects/ovals/freeform beziers/textboxes — movable, scalable, editable,
     ungroupable in PowerPoint). Unconvertible SVGs (curved textPath labels, masks,
-    chart-sized node counts) fall back to svgBlip: vector picture + PNG fallback,
+    charts, data-pptx="picture") fall back to svgBlip: vector picture + PNG fallback,
     manually convertible via right-click → Convert to Shape. `--svg-blip` forces the
     blip path for everything."""
     if not node.get('asset'):
@@ -295,15 +355,27 @@ def _set_fill(sp, fill):
     sp.fill.solid()
     sp.fill.fore_color.rgb = rgb(fill['stops'][0][1])
     solid = sp._element.spPr.find(qn('a:solidFill'))
+    solid.getparent().replace(solid, _grad_fill_xml(fill))
+
+
+def _grad_fill_xml(fill):
+    """svg2shapes gradient model → <a:gradFill>. Linear: a:lin (DrawingML angle).
+    Radial: a:path circle with the focus as fillToRect — pos 0 at the focus, pos 100000
+    at the farthest bbox corner (svg2shapes already rescaled the stops to that extent)."""
     stops = ''.join(
         f'<a:gs pos="{int(round(p * 100000))}"><a:srgbClr val="{c.lstrip("#")}">'
         + (f'<a:alpha val="{int(a * 100000)}"/>' if a < 1 else '')
         + '</a:srgbClr></a:gs>'
         for p, c, a in fill['stops'])
-    ang = int(round((fill['angle'] % 360) * 60000))
-    grad = parse_xml(f'<a:gradFill xmlns:a="{A_NS}" rotWithShape="1"><a:gsLst>{stops}'
-                     f'</a:gsLst><a:lin ang="{ang}" scaled="1"/></a:gradFill>')
-    solid.getparent().replace(solid, grad)
+    if fill['kind'] == 'radial':
+        fx, fy = fill['focus']
+        shade = (f'<a:path path="circle"><a:fillToRect l="{int(fx * 100000)}" '
+                 f't="{int(fy * 100000)}" r="{int((1 - fx) * 100000)}" '
+                 f'b="{int((1 - fy) * 100000)}"/></a:path>')
+    else:
+        shade = f'<a:lin ang="{int(round((fill["angle"] % 360) * 60000))}" scaled="1"/>'
+    return parse_xml(f'<a:gradFill xmlns:a="{A_NS}" rotWithShape="1"><a:gsLst>{stops}'
+                     f'</a:gsLst>{shade}</a:gradFill>')
 
 
 def _set_stroke(sp, stroke):
@@ -320,6 +392,12 @@ def _set_stroke(sp, stroke):
             if srgb is not None:
                 srgb.find(qn('a:srgbClr')).append(parse_xml(
                     f'<a:alpha xmlns:a="{A_NS}" val="{int(a * 100000)}"/>'))
+        if stroke.get('grad'):
+            # gradient stroke (a userSpaceOnUse ramp along a connector): line gradFill,
+            # already cut to this shape's slice by svg2shapes
+            solid = ln.find(qn('a:solidFill'))
+            if solid is not None:
+                ln.replace(solid, _grad_fill_xml(stroke['grad']))
         if stroke.get('cap') == 'rnd':
             ln.set('cap', 'rnd')
         if stroke.get('dash'):
@@ -379,31 +457,40 @@ def add_svg_shape_group(slide, model, rect):
     scales/moves as a unit; ungroup in PowerPoint for per-shape editing."""
     spTree = slide.shapes._spTree
     built = []
-    for n in model:
-        if n['t'] == 'rect':
-            shape_type = MSO_SHAPE.ROUNDED_RECTANGLE if n.get('rx') else MSO_SHAPE.RECTANGLE
-            sp = slide.shapes.add_shape(shape_type, px(n['x']), px(n['y']),
-                                        px(max(n['w'], 0.5)), px(max(n['h'], 0.5)))
-            if n.get('rx'):
-                try:
-                    sp.adjustments[0] = min(0.5, n['rx'] / max(1.0, min(n['w'], n['h'])))
-                except Exception:
-                    pass
-            _set_fill(sp, n['fill']); _set_stroke(sp, n['stroke']); _set_shadow(sp, n['shadow'])
-        elif n['t'] == 'ellipse':
-            sp = slide.shapes.add_shape(MSO_SHAPE.OVAL, px(n['x']), px(n['y']),
-                                        px(max(n['w'], 0.5)), px(max(n['h'], 0.5)))
-            _set_fill(sp, n['fill']); _set_stroke(sp, n['stroke']); _set_shadow(sp, n['shadow'])
-        elif n['t'] == 'free':
-            bx, by, bw, bh = n['bbox']
-            sp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, px(bx), px(by), px(bw), px(bh))
-            _custgeom(sp, n)
-            _set_fill(sp, n['fill']); _set_stroke(sp, n['stroke']); _set_shadow(sp, n['shadow'])
-        elif n['t'] == 'text':
-            sp = _svg_textbox(slide, n)
-        else:
-            continue
-        built.append(sp._element)
+    # a node that fails half-way must not leave its siblings behind on the slide: the
+    # caller falls back to a picture, and stray shapes under it duplicated the artwork
+    # (client agenda orbit, 2026-10-22: two freeforms beneath the svgBlip)
+    before = list(spTree)  # holds the lxml proxies, so identity checks stay valid
+    try:
+        for n in model:
+            if n['t'] == 'rect':
+                shape_type = MSO_SHAPE.ROUNDED_RECTANGLE if n.get('rx') else MSO_SHAPE.RECTANGLE
+                sp = slide.shapes.add_shape(shape_type, px(n['x']), px(n['y']),
+                                            px(max(n['w'], 0.5)), px(max(n['h'], 0.5)))
+                if n.get('rx'):
+                    try:
+                        sp.adjustments[0] = min(0.5, n['rx'] / max(1.0, min(n['w'], n['h'])))
+                    except Exception:
+                        pass
+                _set_fill(sp, n['fill']); _set_stroke(sp, n['stroke']); _set_shadow(sp, n['shadow'])
+            elif n['t'] == 'ellipse':
+                sp = slide.shapes.add_shape(MSO_SHAPE.OVAL, px(n['x']), px(n['y']),
+                                            px(max(n['w'], 0.5)), px(max(n['h'], 0.5)))
+                _set_fill(sp, n['fill']); _set_stroke(sp, n['stroke']); _set_shadow(sp, n['shadow'])
+            elif n['t'] == 'free':
+                bx, by, bw, bh = n['bbox']
+                sp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, px(bx), px(by), px(bw), px(bh))
+                _custgeom(sp, n)
+                _set_fill(sp, n['fill']); _set_stroke(sp, n['stroke']); _set_shadow(sp, n['shadow'])
+            elif n['t'] == 'text':
+                sp = _svg_textbox(slide, n)
+            else:
+                continue
+            built.append(sp._element)
+    except Exception:
+        for el in [e for e in spTree if not any(e is b for b in before)]:
+            spTree.remove(el)
+        raise
 
     if not built:
         return
@@ -451,22 +538,24 @@ def _svg_textbox(slide, n):
             bodyPr.remove(el)
     para = tf.paragraphs[0]
     para.alignment = align
-    rn = para.add_run()
-    rn.text = n['text']
-    rn.font.name = font_for_weight(n['weight'])
-    rn.font.size = Pt(round(size * PT_PER_PX, 1))
-    rn.font.bold = False
-    rn.font.color.rgb = rgb(n['color'])
-    if n.get('grad'):
-        solid = rn.font._rPr.find(qn('a:solidFill'))
-        if solid is not None:
-            stops = ''.join(
-                f'<a:gs pos="{int(round(p * 100000))}"><a:srgbClr val="{c.lstrip("#")}"/></a:gs>'
-                for p, c, a in n['grad']['stops'])
-            ang = int(round((n['grad']['angle'] % 360) * 60000))
-            solid.getparent().replace(solid, parse_xml(
-                f'<a:gradFill xmlns:a="{A_NS}"><a:gsLst>{stops}</a:gsLst>'
-                f'<a:lin ang="{ang}" scaled="1"/></a:gradFill>'))
+    # one run per coloured segment (inline <tspan> runs); single-colour text is one run
+    for run_text, run_color in (n.get('runs') or [(n['text'], n['color'])]):
+        rn = para.add_run()
+        rn.text = run_text
+        rn.font.name, bold = font_for(n['weight'], n.get('family'))
+        rn.font.size = Pt(round(size * PT_PER_PX, 1))
+        rn.font.bold = bold
+        rn.font.color.rgb = rgb(run_color)
+        if n.get('grad'):
+            solid = rn.font._rPr.find(qn('a:solidFill'))
+            if solid is not None:
+                stops = ''.join(
+                    f'<a:gs pos="{int(round(p * 100000))}"><a:srgbClr val="{c.lstrip("#")}"/></a:gs>'
+                    for p, c, a in n['grad']['stops'])
+                ang = int(round((n['grad']['angle'] % 360) * 60000))
+                solid.getparent().replace(solid, parse_xml(
+                    f'<a:gradFill xmlns:a="{A_NS}"><a:gsLst>{stops}</a:gsLst>'
+                    f'<a:lin ang="{ang}" scaled="1"/></a:gradFill>'))
     if n.get('rot'):
         tb.rotation = n['rot']
     return tb
@@ -538,8 +627,7 @@ def set_gradient_background(slide, grad):
     (0deg = up, clockwise) maps to DrawingML ang (0 = right, clockwise, 1/60000 deg)."""
     ang = int(round(((grad['angle'] - 90) % 360) * 60000))
     stops = ''.join(
-        f'<a:gs pos="{int(round(s["pos"] * 1000))}"><a:srgbClr val="{s["color"].lstrip("#")}"/></a:gs>'
-        for s in grad['stops'])
+        _css_stop_xml(s) for s in grad['stops'])
     grad_xml = (f'<a:gradFill xmlns:a="{A_NS}" rotWithShape="1"><a:gsLst>{stops}</a:gsLst>'
                 f'<a:lin ang="{ang}" scaled="1"/></a:gradFill>')
     bg_xml = (f'<p:bg xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
@@ -560,6 +648,13 @@ def build(ir_paths, output, svg_mode='shapes'):
     for path in ir_paths:
         ir = json.load(open(path, encoding='utf-8'))
         slide = prs.slides.add_slide(blank)
+
+        if ir.get('notes'):
+            # explicit speaker notes (extract_ir NOTES_JS) → ppt/notesSlides/notesSlideN.xml
+            ntf = slide.notes_slide.notes_text_frame
+            ntf.text = ir['notes'][0]
+            for para in ir['notes'][1:]:
+                ntf.add_paragraph().text = para
 
         meta = ir['slide']
         if meta.get('bgAsset'):

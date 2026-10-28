@@ -77,7 +77,19 @@ CSS_RULE_RE = re.compile(r'\{([^{}]*)\}')
 CSS_LEFT_BAR_RE = re.compile(r'border-left\s*:\s*(\d+(?:\.\d+)?)px')
 CSS_ZERO_WIDTH_RE = re.compile(r'\bwidth\s*:\s*0\b')
 
-HEX_RE = re.compile(r'#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b')
+# A colour, not a fragment reference: `url(#c13-grad)` / `href="#abc"` point at SVG ids,
+# and an id like "c13-…" starts with three hex digits — the old `\b` boundary read it
+# as a short-form colour and failed the palette census on bespoke-SVG slides (2026-10-01). Also
+# skips numeric entities (`&#160;`).
+HEX_RE = re.compile(r'(?<!url\()(?<!href=")(?<!href=\')(?<![&\w])'
+                    r'#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?![\w-])')
+
+# The eyebrow type token (20px bold, tracked, upper-case) is a LABEL. Set as running
+# copy it ships bold 20px sentences under a token the brand reserves for one-line kickers
+# (template 26 did exactly that, three paragraphs). 10+ words without `uppercase` is a
+# sentence, not an eyebrow.
+EYEBROW_BODY_MIN_WORDS = 10
+TEXT_BLOCK_RE = re.compile(r'<(p|div|span|li|h[1-6])\b[^>]*\bclass="([^"]*)"[^>]*>(.*?)</\1>', re.S)
 
 # A slide's inline `tailwind.config = {...}</script>` block. Every template carries one,
 # and it is meant to be a verbatim copy of the pack's config — so it can only ever
@@ -341,11 +353,19 @@ def check_file(path, ds, tokens, gradients=None, palette=None, template_stems=No
         for n in re.findall(r'text-\[(\d+(?:\.\d+)?)px\]', s):
             if float(n) < min_px:
                 fails.append(f'text-[{n}px] below {min_px:g}px floor')
-        # Text drawn INSIDE an <svg> is diagram labelling, not slide prose: it sits in
-        # fixed geometry (boxes, circles, chevrons) that does not grow with the type
-        # scale, so raising it to the prose floor pushes labels out of their shapes.
-        # The pack declares its own diagram floors under svg.*; use those here.
-        svg_floor = float(ds.get('svg.minCaptionPx', min_px) or min_px)
+        # Text drawn INSIDE an <svg> gets the SAME floor as slide prose. Until
+        # 2026-10-06 it got the pack's svg.minCaptionPx "diagram floor" (14px in the
+        # EPAM pack), which is how nine <text font-size="16"> labels shipped in a real
+        # deck undetected while brand-audit was raising them to 18px by hand.
+        # svg.minBodyPx / minLabelPx / minCaptionPx remain svgkit's sizing TIERS (it
+        # clamps them to this floor); they are no longer a validator exemption.
+        #
+        # SVG sizes are read AS WRITTEN. A font-size attribute or inline font-size on
+        # SVG text is in user units, and this grep-level check has no render
+        # information (no viewBox-to-CSS-box scale), so user units are treated as px.
+        # An <svg> drawn larger than its viewBox only makes its text bigger; one drawn
+        # SMALLER renders below what is checked here — the render-level sampler
+        # (check_gradient.py) reports the true rendered fontSize for those rows.
         svg_regions = re.findall(r'<svg\b.*?</svg>', s, re.S)
         in_svg = ''.join(svg_regions)
         outside = s
@@ -354,12 +374,14 @@ def check_file(path, ds, tokens, gradients=None, palette=None, template_stems=No
         for n in re.findall(r'font-size:\s*(\d+(?:\.\d+)?)px', outside):
             if float(n) < min_px:
                 fails.append(f'font-size:{n}px below {min_px:g}px floor')
+        # inline style on SVG text:  style="font-size:16px"
         for n in re.findall(r'font-size:\s*(\d+(?:\.\d+)?)px', in_svg):
-            if float(n) < svg_floor:
-                fails.append(f'SVG font-size:{n}px below {svg_floor:g}px diagram floor')
-        for n in re.findall(r'font-size="(\d+(?:\.\d+)?)"', s):
-            if float(n) < svg_floor:
-                fails.append(f'SVG font-size="{n}" below {svg_floor:g}px diagram floor')
+            if float(n) < min_px:
+                fails.append(f'SVG font-size:{n}px below {min_px:g}px floor (user units read as px)')
+        # presentation attribute on SVG text:  font-size="16"  /  font-size="16px"
+        for n in re.findall(r'font-size="(\d+(?:\.\d+)?)(?:px)?"', in_svg):
+            if float(n) < min_px:
+                fails.append(f'SVG font-size="{n}" below {min_px:g}px floor (user units read as px)')
 
     # --- inline token values must match the pack's config ---
     # Both shapes a token can take are compared: single hexes (colors, borderColor…)
@@ -492,6 +514,18 @@ def check_file(path, ds, tokens, gradients=None, palette=None, template_stems=No
             fails.append(f'hex color(s) outside the {ds.name} palette: {", ".join(off)} '
                          f'(palette = union of tokens + design-system files). '
                          + ds.note('enforcePaletteCensus'))
+
+    eyebrow_cls = f'text-{prefix}-eyebrow'
+    if eyebrow_cls in s:
+        for m in TEXT_BLOCK_RE.finditer(s):
+            cls = m.group(2).split()
+            if eyebrow_cls not in cls or 'uppercase' in cls:
+                continue
+            words = re.findall(r"[A-Za-z][A-Za-z'’-]+", re.sub(r'<[^>]+>|&#?\w+;', ' ', m.group(3)))
+            if len(words) >= EYEBROW_BODY_MIN_WORDS:
+                fails.append(f'"{eyebrow_cls}" used as body copy ({len(words)} words, '
+                             f'"{" ".join(words[:6])} …") — eyebrows are one-line upper-case '
+                             f'labels; set running text in a body/label size token')
 
     if ds.rule('requireDataTemplate') and template_stems is not None and not is_base:
         mt = re.search(r'data-template="([^"]+)"', s)

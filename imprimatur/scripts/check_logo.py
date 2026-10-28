@@ -24,8 +24,10 @@ The pack declares only how to FIND the logo, in design-system.json:
     }
 
 No `logo` block → the check is skipped (None), never guessed. `data-logo="ok"`
-on the element exempts it (a co-branded lockup, a deliberately larger mark) —
-say why in the slide's log line.
+on the element exempts it (a deliberately larger mark) — say why in the slide's
+log line. A co-brand lockup needs no exemption since 1.6.1: cobrand.py leaves the
+pack logo at the template's height, corner and fill, this check measures it as
+usual, and check_cobrand.py measures the client mark beside it.
 
 Exposes analyze_page(page, ds, name) → (findings: list[str] | None, info: dict)
 for render_checks.py; findings is None when skipped.
@@ -47,7 +49,9 @@ MEASURE_JS = """
   const slide = document.getElementById('slide');
   if (!slide) return { error: 'no #slide element' };
   const sb = slide.getBoundingClientRect();
-  const el = slide.querySelector(selector);
+  // the client mark of a co-brand lockup is check_cobrand.py's, never "the logo"
+  const el = [...slide.querySelectorAll(selector)]
+    .find(e => !e.closest('[data-cobrand="client"]')) || null;
   const template = slide.getAttribute('data-template') || '';
   if (!el) return { found: false, template };
   const r = el.getBoundingClientRect();

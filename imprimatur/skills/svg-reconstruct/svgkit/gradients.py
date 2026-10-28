@@ -38,16 +38,16 @@ def radial(id_, stops, cx="50%", cy="50%", r="50%", fx=None, fy=None):
     )
 
 
-def auto(id_, base_color, angle=135, light=0.22, dark=-0.14):
-    """Default gradient for a builder that only has ONE color to paint a shape with.
-    Shades base_color into a light/dark pair (see presets._shade) instead of the
+def auto(id_, base_color, angle=135, light=None, dark=None):
+    """Default gradient for a builder that only has ONE color to paint a shape with:
+    base_color paired with its on-palette neighbour (presets.partner) instead of the
     flat-fill-disguised-as-a-gradient antipattern of writing the same color into both
-    stops. Use this as a DEFAULT; a flat fill actually verified against a reference
-    screenshot should still be written explicitly as two identical stops, not routed
-    through here — this is for the no-reference / no-explicit-color-chosen case."""
+    stops — and instead of a computed shade, which the palette census rejects. Use this
+    as a DEFAULT; a flat fill actually verified against a reference screenshot should
+    still be written explicitly as two identical stops. light/dark: ignored (old API)."""
     from . import presets
-    return linear(id_, angle, [("0%", presets._shade(base_color, light), 1),
-                               ("100%", presets._shade(base_color, dark), 1)])
+    return linear(id_, angle, [("0%", base_color, 1),
+                               ("100%", presets.partner(base_color), 1)])
 
 
 def drop_shadow(id_, dx=0, dy=4, blur=6, color="#000", opacity=0.25):

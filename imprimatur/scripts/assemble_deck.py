@@ -95,6 +95,73 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
 </html>
 """
 
+# The motion viewer (deck-motion, 1.5.0): two stacked stages, a transition between them,
+# behaviour in motion/viewer.js (copied beside index.html). Chosen ONLY when the deck opted in
+# at intake (deck-state.json `motion.enabled`) AND the pack declares a `motion` block; every
+# other deck keeps INDEX_TEMPLATE above byte-for-byte, so a static deck costs nothing.
+MOTION_INDEX_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title}</title>
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    html, body {{
+      width: 100%; height: 100%; background: #111; overflow: hidden;
+      font-family: "{font_family}", "-apple-system", sans-serif;
+    }}
+    .stage {{ position: fixed; inset: 0; opacity: 0; visibility: hidden; will-change: transform, opacity; }}
+    .stage iframe {{ width: 100%; height: 100%; border: none; display: block; background: #111; }}
+    #nav {{
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(0, 0, 0, 0.7); border-radius: 99px; padding: 10px 20px; z-index: 100;
+    }}
+    #nav button {{
+      background: none; border: 1px solid rgba(255, 255, 255, 0.3); color: #fff;
+      border-radius: 6px; padding: 6px 16px; cursor: pointer; font-size: 14px;
+      transition: all 0.2s ease;
+    }}
+    #nav button:hover {{ background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.6); }}
+    #counter {{ color: rgba(255, 255, 255, 0.6); font-size: 13px; min-width: 60px; text-align: center; }}
+    #motion-toggle {{ font-size: 12px; opacity: 0.7; }}
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage-a"><iframe title="slide"></iframe></div>
+  <div class="stage" id="stage-b"><iframe title="next slide"></iframe></div>
+  <div id="leak" style="position:fixed;inset:0;pointer-events:none;opacity:0;z-index:50;background:radial-gradient(ellipse at 30% 40%, rgba(255,255,255,0.95), rgba(255,255,255,0) 60%)"></div>
+
+  <div id="nav">
+    <button onclick="deckPrev()">← Prev</button>
+    <span id="counter">1 / {count}</span>
+    <button onclick="deckNext()">Next →</button>
+    <button id="motion-toggle" title="S toggles motion">Motion: on</button>
+  </div>
+
+  <script>
+    window.__DECK = {deck_config};
+  </script>
+  <script src="motion/viewer.js"></script>
+</body>
+</html>
+"""
+
+# WAAPI easing for the stage transition; GSAP ease names from the pack map onto CSS curves
+# so the viewer needs no library. Unknown names fall back to a neutral in-out.
+EASING_CSS = {
+    "power1.inOut": "cubic-bezier(0.45, 0, 0.55, 1)",
+    "power2.inOut": "cubic-bezier(0.65, 0, 0.35, 1)",
+    "power3.inOut": "cubic-bezier(0.83, 0, 0.17, 1)",
+    "power2.out": "cubic-bezier(0.33, 1, 0.68, 1)",
+    "power3.out": "cubic-bezier(0.22, 1, 0.36, 1)",
+    "sine.inOut": "cubic-bezier(0.37, 0, 0.63, 1)",
+    "linear": "linear", "none": "linear", "ease": "ease",
+}
+TRANSITION_TYPES = ("crossfade", "push", "zoom-through", "zoom-blur", "whip-pan", "light-leak", "push-depth", "none")
+MOTION_RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "motion")
+
 INTAKE_FIELDS = {
     "client": ("client",),
     "engagement": ("engagement",),
@@ -145,6 +212,92 @@ def build_index_html(title, slide_files):
     )
 
 
+def parse_motion_line(brief_path):
+    """`- **Motion:** yes · push · steps` (or `no`) from deck-brief.md → the deck-state shape,
+    or None when the brief has no Motion line. deck-state.json wins when both exist; this is
+    the fallback for a deck whose intake wrote the brief but never the state field."""
+    if not os.path.isfile(brief_path):
+        return None
+    text = open(brief_path, encoding="utf-8").read()
+    m = re.search(r"^\s*-\s*\*\*Motion:\*\*\s*(.+)$", text, re.M)
+    if not m:
+        return None
+    parts = [p.strip().lower() for p in re.split(r"[·,|/]", m.group(1)) if p.strip()]
+    if not parts or parts[0] not in ("yes", "y", "on", "true"):
+        return {"enabled": False}
+    out = {"enabled": True}
+    for p in parts[1:]:
+        if p in TRANSITION_TYPES:
+            out["transition"] = p
+        elif p in ("steps", "build-ins", "buildins"):
+            out["steps"] = True
+        elif p in ("auto", "entrance", "no steps"):
+            out["steps"] = False
+    return out
+
+
+def motion_settings(state, deck_dir, ds):
+    """What the viewer should do for THIS deck, or None for the plain viewer.
+
+    Two independent yeses are needed: the deck's (intake → deck-state.json `motion`, brief
+    fallback) and the pack's (`motion` block, ds_config.motion_enabled()). A deck that asked
+    for motion on a pack without a motion block gets the plain viewer and a printed reason —
+    never a guessed brand motion.
+    """
+    deck_m = state.get("motion")
+    if not isinstance(deck_m, dict):
+        deck_m = parse_motion_line(os.path.join(deck_dir, "deck-brief.md")) or {"enabled": False}
+    if not deck_m.get("enabled"):
+        return None
+    if ds is None or not ds.motion_enabled():
+        print("motion: the deck opted in but the pack declares no `motion` block — plain viewer",
+              file=sys.stderr)
+        return None
+    pack_m = ds.motion()
+    t = dict(pack_m.get("transition") or {})
+    override = deck_m.get("transition")
+    if isinstance(override, str) and override in TRANSITION_TYPES:
+        t["type"] = override
+    elif isinstance(override, dict):
+        t.update(override)
+    if t.get("type") not in TRANSITION_TYPES:
+        t["type"] = "crossfade"
+    ease_name = (pack_m.get("easing") or {}).get("transition", "power2.inOut")
+    return {
+        "transition": {"type": t["type"], "durationMs": int(t.get("durationMs", 450))},
+        "easing": EASING_CSS.get(ease_name, EASING_CSS["power1.inOut"]),
+        "steps": bool(deck_m.get("steps", False)),
+        "blur": deck_m.get("blur") or pack_m.get("blur", "subtle"),
+    }
+
+
+def build_motion_index_html(title, slide_files, settings, font_family):
+    deck_config = json.dumps({
+        "slides": slide_files,
+        "transition": settings["transition"],
+        "transitions": {},   # per-slide overrides, filled by choreograph.py from the pack's templateOverrides
+        "blur": settings.get("blur", "subtle"),
+        "easing": settings["easing"],
+        "steps": settings["steps"],
+    }, ensure_ascii=False)
+    return MOTION_INDEX_TEMPLATE.format(title=title, count=len(slide_files),
+                                        deck_config=deck_config, font_family=font_family)
+
+
+def install_motion_runtime(deck_dir):
+    """Copy motion/viewer.js (and motion.js when choreograph.py has shipped it) beside index.html."""
+    dst = os.path.join(deck_dir, "motion")
+    os.makedirs(dst, exist_ok=True)
+    copied = []
+    for name in ("viewer.js", "motion.js"):
+        src = os.path.join(MOTION_RUNTIME_DIR, name)
+        if os.path.isfile(src):
+            with open(src, "rb") as fi, open(os.path.join(dst, name), "wb") as fo:
+                fo.write(fi.read())
+            copied.append(name)
+    return copied
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.strip().split("\n")[0])
     ap.add_argument("--deck-dir", required=True)
@@ -164,10 +317,20 @@ def main():
 
     title = args.title or state.get("deck") or "Untitled Deck"
 
-    # index.html
+    # index.html — plain viewer, or the two-stage motion viewer when deck AND pack both say so
+    try:
+        ds = _load_ds(deck_dir=deck_dir)
+    except SystemExit:
+        ds = None
+    settings = motion_settings(state, deck_dir, ds)
     index_path = os.path.join(deck_dir, "index.html")
     with open(index_path, "w", encoding="utf-8") as f:
-        f.write(build_index_html(title, slide_files))
+        if settings:
+            font_family = ds.get("typography.familyLabel", "sans-serif")
+            f.write(build_motion_index_html(title, slide_files, settings, font_family))
+        else:
+            f.write(build_index_html(title, slide_files))
+    runtime = install_motion_runtime(deck_dir) if settings else []
 
     # deck-metadata.json — merge onto whatever already exists so an export
     # record (exports/status/created_at/version) is never silently wiped.
@@ -191,12 +354,19 @@ def main():
     meta.setdefault("version", "1.0")
     meta.setdefault("status", "in_progress")
     meta.setdefault("exports", {})
+    if settings:
+        meta["motion"] = {"enabled": True, "transition": settings["transition"]["type"],
+                          "steps": settings["steps"], "viewer": "motion/viewer.js"}
+    else:
+        meta["motion"] = {"enabled": False}
 
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
-    print(f"wrote {index_path} ({len(slide_files)} slide(s))")
+    kind = (f"motion viewer: {settings['transition']['type']} {settings['transition']['durationMs']} ms"
+            f"{', steps' if settings['steps'] else ''}; runtime {', '.join(runtime)}") if settings else "plain viewer"
+    print(f"wrote {index_path} ({len(slide_files)} slide(s); {kind})")
     print(f"wrote {meta_path}")
 
 

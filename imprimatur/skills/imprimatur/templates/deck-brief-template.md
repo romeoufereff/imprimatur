@@ -29,6 +29,7 @@ the machine fields (paths, slide count) and links back to this file.
   1. <non-negotiable 1>
   2. <non-negotiable 2>
   3. <…>
+- **Motion:** <no | yes · crossfade|push|zoom-through · steps|auto>   — decided at intake; `no` = static deck, §7b skipped
 
 ## Taste dials  (see references/taste-dials.md)
 - **Density:** <sparse | balanced | dense>   — default for this audience: <…>
@@ -64,6 +65,7 @@ the machine fields (paths, slide count) and links back to this file.
   2. Snowflake + Databricks target architecture
   3. 18-month ROI proof
   4. Risk mitigation (data governance, change management)
+- **Motion:** yes · crossfade · auto
 
 ## Taste dials
 - **Density:** sparse   — default for executive audience

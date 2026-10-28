@@ -19,7 +19,7 @@ def build(config_path, out_svg_path=None):
         gy = y_of(val)
         body.append(f'<line x1="{p["x"]}" y1="{gy:.1f}" x2="{p["x"]+p["w"]}" '
                     f'y2="{gy:.1f}" stroke="{presets.RULE}"/>')
-        body.append(text.label(p["x"]-12, gy, f"{val:g}", 12, color="#888",
+        body.append(text.label(p["x"]-12, gy, f"{val:g}", 12, color=presets.MUTED,
                     weight="400", anchor="end"))
 
     for si, s in enumerate(cfg["series"]):
@@ -37,7 +37,7 @@ def build(config_path, out_svg_path=None):
 
     for i, lbl in enumerate(xlabels):
         body.append(text.label(x_of(i), p["y"]+p["h"]+22, lbl, 12,
-                    color="#888", weight="400"))
+                    color=presets.MUTED, weight="400"))
 
     doc = canvas.svg(cfg["width"], cfg["height"], "".join(defs), "".join(body),
                      bg=cfg.get("background", "#ffffff"))

@@ -82,7 +82,10 @@ def main():
         return 0
 
     try:
-        ds = load()
+        # The slide's own deck names the pack (deck-state.json "design_system"); the
+        # environment is only the fallback. Otherwise every deck on the machine is judged
+        # against whichever brand the env happens to name.
+        ds = load(deck_dir=os.path.dirname(os.path.abspath(file_path)))
         tokens, gradients = validate.canonical_tokens(ds)
         palette = validate.allowed_hexes(ds)
         import glob

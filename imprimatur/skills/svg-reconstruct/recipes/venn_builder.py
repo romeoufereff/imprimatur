@@ -1,5 +1,5 @@
 """Builder for Venn diagrams."""
-from svgkit import text, canvas, schema
+from svgkit import text, canvas, schema, presets
 
 
 def build(config_path, out_svg_path=None):
@@ -17,7 +17,7 @@ def build(config_path, out_svg_path=None):
                         color=c.get("label_color", "#fff"), weight="700"))
     for ov in cfg.get("overlaps", []):
         body.append(text.label(ov["x"], ov["y"], ov["label"], ov.get("size", 14),
-                    color=ov.get("color", "#333"), weight="600"))
+                    color=ov.get("color", presets.BODY), weight="600"))
 
     doc = canvas.svg(cfg["width"], cfg["height"], "", "".join(body),
                      bg=cfg.get("background", "#ffffff"))

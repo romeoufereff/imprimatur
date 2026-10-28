@@ -3,7 +3,7 @@ from svgkit import geometry as g, gradients as grad, text, icons, canvas, schema
 
 ARROW = ('<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" '
          'refY="3" orient="auto" markerUnits="strokeWidth">'
-         '<path d="M0,0 L8,3 L0,6 Z" fill="#555"/></marker>')
+         f'<path d="M0,0 L8,3 L0,6 Z" fill="{presets.MUTED}"/></marker>')
 
 
 def build(config_path, out_svg_path=None):
@@ -26,11 +26,11 @@ def build(config_path, out_svg_path=None):
         else:
             d = g.elbow_connector(x1, y1, x2, y2)
         marker = ' marker-end="url(#arrow)"' if e.get("arrow", True) else ""
-        body.append(f'<path d="{d}" fill="none" stroke="#555" '
+        body.append(f'<path d="{d}" fill="none" stroke="{presets.MUTED}" '
                     f'stroke-width="2"{marker}/>')
         if e.get("label"):
             body.append(text.label((x1+x2)/2, (y1+y2)/2-8, e["label"], 12,
-                        color="#555", weight="500"))
+                        color=presets.MUTED, weight="500"))
 
     for i, n in enumerate(cfg["nodes"]):
         gid = f"node{i}"

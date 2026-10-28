@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<!-- Diagram-check regressions (run_evals.py diagram). Brand-neutral: greys and the
+     engine's neutral blue. Every defect here hid from qa.py until check_diagram.py
+     (2026-10-26 restyle review); fixed.html is the same slide with each one repaired. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>diagram checks — seeded</title>
+<style>
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #1A1A1A; }
+  #slide { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #FFFFFF; }
+  .abs { position: absolute; box-sizing: border-box; }
+  .card { border: 1px solid #999999; background: #FFFFFF; padding: 16px; font-size: 24px; line-height: 32px; }
+  .wires { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @keyframes slide-in { from { transform: translateY(160px); } to { transform: none; } }
+  /* a deck's own !important animation rule, more specific than `html body *` */
+  .stage .card .mover { display: block; animation: slide-in 6s both !important; }
+</style>
+</head>
+<body>
+<div id="slide">
+  <!-- A · text leaves its card (fixed height) -->
+  <div class="abs card" style="left:80px; top:80px; width:360px; height:100px;">
+    Card copy that is far too long for the fixed height of this card, so its last two lines run out through the bottom border
+  </div>
+
+  <!-- B · not defects: a top rule is not a box; a tight badge numeral keeps its half-leading -->
+  <div class="abs" style="left:480px; top:80px; width:360px; height:40px; border-top:1px solid #999999; font-size:24px; line-height:32px;">
+    Text under a top rule may run below the rule's element without leaving any box
+  </div>
+  <div class="abs" style="left:880px; top:80px; width:44px; height:44px; background:#3355DD; color:#FFFFFF; font-size:32px; line-height:1; text-align:center; padding-top:6px;">07</div>
+
+  <!-- C · not a defect: screen-reader-only text sits off the canvas -->
+  <span class="sr-only" style="left:-600px; top:20px;">Screen reader only description of the diagram</span>
+
+  <!-- D · a route that starts inside a label's descender band -->
+  <div class="abs" style="left:80px; top:260px; font-size:28px; line-height:40px;">Descender gyp label</div>
+
+  <!-- E · not a defect: a line passing BEHIND a white-backed label -->
+  <div class="abs card" style="left:600px; top:280px; width:240px; height:64px; z-index:2; text-align:center;">Masked label</div>
+
+  <!-- F, G · arrow targets -->
+  <div class="abs card" style="left:1100px; top:100px; width:200px; height:80px; z-index:2;">Target one</div>
+  <div class="abs card" style="left:1100px; top:260px; width:200px; height:80px; z-index:2;">Target two</div>
+  <div class="abs card" style="left:1100px; top:660px; width:200px; height:80px; z-index:2;">Target three</div>
+
+  <!-- H · a painted left accent bar -->
+  <div class="abs" style="left:80px; top:560px; width:400px; height:80px; border-left:4px solid #3355DD; padding-left:16px; font-size:24px;">Accent bar note</div>
+
+  <!-- I · mid-animation: measured at 400 ms the copy sits ~150 px below its card -->
+  <div class="stage"><div class="abs card" style="left:80px; top:760px; width:400px; height:120px;"><span class="mover">Animated card copy</span></div></div>
+
+  <!-- J · a stripe card: 3px coloured top edge over a 1px border (rejected as a non-pack pattern) -->
+  <div class="abs card" style="left:1400px; top:80px; width:360px; height:100px; border-top:3px solid #3355DD;">Stripe card copy</div>
+  <!-- not a defect: a 2px divider rule above unboxed text -->
+  <div class="abs" style="left:1400px; top:220px; width:360px; height:60px; border-top:2px solid #3355DD; padding-top:8px; font-size:24px;">Divider above a metric</div>
+
+  <!-- K · one short card: the grid stretches each wrapper, not the card inside it -->
+  <div class="abs" style="left:1400px; top:640px; width:440px; display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+    <div><div class="card" style="height:180px;">Tall row card</div></div>
+    <div><div class="card" style="min-height:140px;">Short row card</div></div>
+  </div>
+
+  <svg class="wires" width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="tip" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+        <path d="M0 0 L10 5 L0 10 Z" fill="#3355DD"/>
+      </marker>
+      <marker id="tip-grey" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+        <path d="M0 0 L10 5 L0 10 Z" fill="#D0D0D0"/>
+      </marker>
+    </defs>
+    <!-- D: starts in the descender band of "Descender gyp label", then leaves it -->
+    <path d="M 130 294 L 420 430" stroke="#3355DD" stroke-width="2" fill="none"/>
+    <!-- E: behind the masked label -->
+    <path d="M 560 312 L 880 312" stroke="#3355DD" stroke-width="2" fill="none"/>
+    <!-- F: buried 24 px inside Target one -->
+    <path d="M 900 140 L 1124 140" stroke="#3355DD" stroke-width="2" fill="none" marker-end="url(#tip)"/>
+    <!-- F: floats 40 px short of Target two -->
+    <path d="M 900 300 L 1060 300" stroke="#3355DD" stroke-width="2" fill="none" marker-end="url(#tip)"/>
+    <!-- not a defect: an exit arrow with nothing ahead -->
+    <path d="M 1400 500 L 1600 500" stroke="#3355DD" stroke-width="2" fill="none" marker-end="url(#tip)"/>
+    <!-- G: a connector in a rule grey, 1.5:1 on white -->
+    <path d="M 900 700 L 1100 700" stroke="#D0D0D0" stroke-width="2" fill="none" stroke-dasharray="8 5" marker-end="url(#tip-grey)"/>
+  </svg>
+</div>
+</body>
+</html>

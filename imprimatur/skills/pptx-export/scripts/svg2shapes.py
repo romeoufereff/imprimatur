@@ -9,10 +9,26 @@ and ungroups for editing. This is what makes an exported diagram adjustable in
 PowerPoint instead of a picture.
 
 Scope = the design system's SVG grammar (rect/circle/ellipse/line/polyline/polygon/
-path/text/g, linearGradient incl. userSpaceOnUse, marker-end arrowheads, feDropShadow,
-transforms, dashes, text-anchor). Anything outside it raises Unconvertible with a reason
-and the builder falls back to today's svgBlip: textPath (curved labels), mask, pattern,
-radialGradient, <use>, <image>, <foreignObject>, or >150 elements (ECharts).
+path/text/g, linearGradient incl. userSpaceOnUse, radialGradient, marker-end arrowheads,
+feDropShadow, transforms, dashes, text-anchor). Anything outside it raises Unconvertible
+with a reason and the builder falls back to today's svgBlip: textPath (curved labels),
+mask, pattern, <use>, <image>, <foreignObject>, a chart, or >500 paint elements.
+
+Chart or diagram is decided by provenance, not size (`picture_reason`). A chart is an SVG
+a chart library drew: extract_ir.py stamps `data-pptx-chart="echarts"` on SVGs inside an
+ECharts container, and those stay vector pictures (`--native-charts` makes them real
+charts) because exploded series paths are neither a chart nor a diagram anyone edits.
+Hand-drawn SVGs convert at any density up to MAX_ELEMENTS, a safety ceiling against
+illustration-sized artwork, not a chart test: until 1.6.4 the cap was 150 and doubled as
+the chart test, so the 1&1 roadmap's knowledge-graph row (180 elements) became a picture
+while a 42-element ECharts chart converted. Authors override either way with
+`data-pptx="shapes"` / `data-pptx="picture"` on the <svg> or any ancestor.
+
+Gradients that span several shapes (userSpaceOnUse — one ramp across two curves) are cut
+per shape (gradients.user_space_window): PowerPoint restarts a gradient in every shape.
+radialGradient becomes a DrawingML path gradient (`a:path path="circle"`, focus via
+fillToRect); its stops are rescaled because PowerPoint's circle reaches the bounding
+box's farthest corner while SVG's ends at `r`. Gradient STROKES become line gradFills.
 <clipPath> definitions are skipped rather than rejected: ECharts' SVG renderer wraps every
 plot in a clip equal to the plot area, which trims nothing visible, and PowerPoint shapes
 cannot carry a clip anyway — so a clipped group converts to native shapes unclipped.
@@ -48,14 +64,19 @@ while not os.path.isdir(os.path.join(_probe, ".claude-plugin")):
     _probe = _parent
 sys.path.insert(0, os.path.join(_probe, "scripts"))
 from ds_config import load as _load_ds  # noqa: E402
+sys.path.insert(0, _here)
+from gradients import remap_stops, user_space_window  # noqa: E402
 
 # Font written back into SVG by model_to_svg (the render-diff verify path). Read from
 # the active design system so the proof compares like with like whichever pack is in play.
 _TEXT_FONT = _load_ds().get("typography.familyLabel", "sans-serif")
 
-MAX_ELEMENTS = 150
+# Safety ceiling for hand-drawn SVGs — see picture_reason(). 2.5x the densest diagram
+# seen so far (1&1 knowledge-graph row, 180); each element becomes a PowerPoint shape.
+MAX_ELEMENTS = 500
+PAINT_TAGS = ('rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text')
 
-UNSUPPORTED = {'textPath', 'mask', 'pattern', 'radialGradient',
+UNSUPPORTED = {'textPath', 'mask', 'pattern',
                'use', 'image', 'foreignObject', 'symbol', 'switch'}
 
 
@@ -391,28 +412,81 @@ class Parser:
         st.update(decls)
         return st
 
-    def resolve_fill(self, val, opacity):
+    def resolve_fill(self, val, opacity, m=None):
         if val is None:
             val = '#000000'
         val = val.strip()
         if val == 'none':
             return None
-        m = re.match(r'url\(#([^)]+)\)', val)
-        if m:
-            g = self.gradients.get(m.group(1))
+        mu = re.match(r'url\(#([^)]+)\)', val)
+        if mu:
+            g = self.gradients.get(mu.group(1))
             if g is None:
-                raise Unconvertible(f'unresolved paint url #{m.group(1)}')
-            return g
+                raise Unconvertible(f'unresolved paint url #{mu.group(1)}')
+            # SVG: zero stops paint nothing, one stop paints that colour solid
+            if not g['stops']:
+                return None
+            if len(g['stops']) == 1:
+                return {'kind': 'solid', 'color': g['stops'][0][1],
+                        'alpha': g['stops'][0][2] * opacity}
+            return self._place_gradient(g, m)
         c, ca = _color_alpha(val)
         return {'kind': 'solid', 'color': c, 'alpha': ca * opacity}
 
     # ---- defs
 
+    def _place_gradient(self, g, m):
+        """userSpaceOnUse geometry lives in the REFERENCING element's user space: map it
+        to slide px with that element's matrix now; the per-shape cut happens once the
+        shape's bbox is known (finalize_gradients)."""
+        g = dict(g)
+        if g.get('units') == 'user' and m is not None:
+            if g['kind'] == 'grad':
+                g['user_vec'] = (mat_apply(m, *g['p1']), mat_apply(m, *g['p2']))
+            else:
+                g['user_c'] = mat_apply(m, g['cx'], g['cy'])
+                g['user_f'] = mat_apply(m, g['fx'], g['fy'])
+                g['user_r'] = g['r'] * mat_scale_avg(m)
+        return g
+
+    def _inherit_gradient(self, g, by_id):
+        """Resolve a gradient's xlink:href/href chain (SVG 1.1 §13.2.2/13.2.3): stops come
+        from the first element in the chain that has any, and every attribute not set
+        locally is taken from the nearest referenced gradient that sets it — geometry
+        (x1…y2, cx…fr) only from a gradient of the same kind. Illustrator exports
+        (client orbit artwork, 2026-10-22) put the stops on one gradient and point the
+        rest at it; without this the stop list came out empty → IndexError → svgBlip."""
+        common = ('gradientUnits', 'gradientTransform', 'spreadMethod')
+        geom = {'linearGradient': ('x1', 'y1', 'x2', 'y2'),
+                'radialGradient': ('cx', 'cy', 'r', 'fx', 'fy', 'fr')}
+        tag = _strip(g.tag)
+        out = ET.Element(g.tag, {k: v for k, v in g.attrib.items() if not k.endswith('href')})
+        stops = [s for s in g if _strip(s.tag) == 'stop']
+        seen, cur = {g.get('id')}, g
+        while True:
+            ref = (cur.get('{http://www.w3.org/1999/xlink}href') or cur.get('href') or '').strip()
+            if not ref.startswith('#') or ref[1:] in seen or ref[1:] not in by_id:
+                break
+            cur = by_id[ref[1:]]
+            seen.add(ref[1:])
+            names = common + (geom[tag] if _strip(cur.tag) == tag else ())
+            for k in names:
+                if out.get(k) is None and cur.get(k) is not None:
+                    out.set(k, cur.get(k))
+            if not stops:
+                stops = [s for s in cur if _strip(s.tag) == 'stop']
+        out.extend(stops)
+        return out
+
     def collect_defs(self, el):
+        by_id = {c.get('id'): c for c in el.iter()
+                 if _strip(c.tag) in ('linearGradient', 'radialGradient') and c.get('id')}
         for child in el.iter():
             tag = _strip(child.tag)
             if tag == 'linearGradient':
-                self.gradients[child.get('id')] = self._gradient(child)
+                self.gradients[child.get('id')] = self._gradient(self._inherit_gradient(child, by_id))
+            elif tag == 'radialGradient':
+                self.gradients[child.get('id')] = self._radial(self._inherit_gradient(child, by_id))
             elif tag == 'marker':
                 self.markers[child.get('id')] = child
             elif tag == 'filter':
@@ -424,7 +498,7 @@ class Parser:
                         'color': _color(fe.get('flood-color') or '#000000'),
                         'alpha': float(fe.get('flood-opacity') or 0.3)}
 
-    def _gradient(self, g):
+    def _stops(self, g):
         stops = []
         for s in g:
             if _strip(s.tag) != 'stop':
@@ -442,6 +516,26 @@ class Parser:
                         alpha = float(v.strip())
             c, ca = _color_alpha(color or '#000')
             stops.append((pos, c, alpha * ca))
+        return stops
+
+    def _radial(self, g):
+        user = (g.get('gradientUnits') or '') == 'userSpaceOnUse'
+
+        def num(attr, default):
+            v = (g.get(attr) or default).strip()
+            if v.endswith('%'):
+                return float(v[:-1]) / 100.0
+            return float(v)
+        cx, cy, r = num('cx', '50%'), num('cy', '50%'), num('r', '50%')
+        fx = num('fx', g.get('cx') or '50%')
+        fy = num('fy', g.get('cy') or '50%')
+        if g.get('gradientTransform'):
+            raise Unconvertible('radialGradient with gradientTransform')
+        return {'kind': 'radial', 'stops': self._stops(g), 'units': 'user' if user else 'bbox',
+                'cx': cx, 'cy': cy, 'r': r, 'fx': fx, 'fy': fy}
+
+    def _gradient(self, g):
+        stops = self._stops(g)
         x1 = float((g.get('x1') or '0').rstrip('%'))
         y1 = float((g.get('y1') or '0').rstrip('%'))
         x2 = float((g.get('x2') or ('1' if not (g.get('x2') or '').endswith('%') else '100')).rstrip('%'))
@@ -450,29 +544,53 @@ class Parser:
         p1 = mat_apply(gt, x1, y1)
         p2 = mat_apply(gt, x2, y2)
         angle = math.degrees(math.atan2(p2[1] - p1[1], p2[0] - p1[0])) % 360
-        return {'kind': 'grad', 'angle': angle, 'stops': stops}
+        out = {'kind': 'grad', 'angle': angle, 'stops': stops}
+        if (g.get('gradientUnits') or '') == 'userSpaceOnUse':
+            out.update(units='user', p1=p1, p2=p2)
+        return out
 
     # ---- traversal
 
     def run(self):
         self.collect_defs(self.root)
-        # element-count guard: charts explode into hundreds of nodes — not worth shapes
-        n_paint = sum(1 for e in self.root.iter()
-                      if _strip(e.tag) in ('rect', 'circle', 'ellipse', 'line', 'polyline',
-                                           'polygon', 'path', 'text'))
-        if n_paint > MAX_ELEMENTS:
-            raise Unconvertible(f'{n_paint} paint elements (chart?)')
+        why = picture_reason(self.root)
+        if why:
+            raise Unconvertible(why)
         for e in self.root.iter():
             if _strip(e.tag) in UNSUPPORTED:
                 raise Unconvertible(_strip(e.tag))
         base_style = {'fill': '#000000', 'font-size': '16', 'font-weight': '400',
                       'text-anchor': 'start'}
         self.walk(self.root, self.base, base_style, in_defs=False)
+        self.finalize_gradients()
         return self.nodes
+
+    def finalize_gradients(self):
+        """Turn every gradient paint into the shape's OWN gradient now that its bbox is
+        known: userSpaceOnUse ramps are cut to the slice the shape covers, radials get
+        PowerPoint path-gradient geometry."""
+        for n in self.nodes:
+            if n['t'] == 'free':
+                bbox = n['bbox']
+            elif n['t'] in ('rect', 'ellipse'):
+                bbox = (n['x'], n['y'], n['w'], n['h'])
+            else:
+                continue
+            for key in ('fill', 'stroke'):
+                paint = n.get(key)
+                g = paint.get('grad') if (key == 'stroke' and paint) else paint
+                if not g or g.get('kind') not in ('grad', 'radial'):
+                    continue
+                fixed = _shape_gradient(g, bbox)
+                if key == 'stroke':
+                    paint['grad'] = fixed
+                else:
+                    n['fill'] = fixed
 
     def walk(self, el, m, style, in_defs):
         tag = _strip(el.tag)
-        if tag in ('defs', 'clipPath', 'marker', 'filter', 'linearGradient', 'title', 'desc', 'metadata', 'style'):
+        if tag in ('defs', 'clipPath', 'marker', 'filter', 'linearGradient', 'radialGradient',
+                   'title', 'desc', 'metadata', 'style'):
             return
         st = self.style_of(el, style)
         mm = mat_mul(m, parse_transform(el.get('transform') or ''))
@@ -489,20 +607,28 @@ class Parser:
 
     def _paints(self, el, st, m):
         opacity = float(st.get('opacity') or 1)
-        fill = self.resolve_fill(st.get('fill'), float(st.get('fill-opacity') or 1) * opacity)
+        fill = self.resolve_fill(st.get('fill'), float(st.get('fill-opacity') or 1) * opacity, m)
         stroke = None
+        sgrad = None
         sval = st.get('stroke')
+        sm = re.match(r'url\(#([^)]+)\)', sval or '')
+        g = self.gradients.get(sm.group(1)) if sm else None
+        if sm and g is None:
+            raise Unconvertible(f'unresolved stroke url')
+        if g is not None and not g['stops']:
+            sval = None  # SVG: a gradient with zero stops paints nothing
         if sval and sval != 'none':
-            sm = re.match(r'url\(#([^)]+)\)', sval)
-            if sm:
-                g = self.gradients.get(sm.group(1))
-                if g is None:
-                    raise Unconvertible(f'unresolved stroke url')
-                # PPTX lines can't take gradients via python-pptx cleanly → mid-stop color
-                scolor, salpha = g['stops'][len(g['stops']) // 2][1], 1.0
+            if g is not None:
+                # line gradFill (builder) — mid-stop colour stays as the solid fallback;
+                # one stop paints that colour solid
+                if len(g['stops']) > 1:
+                    sgrad = self._place_gradient(g, m) if g['kind'] == 'grad' else None
+                    scolor, salpha = g['stops'][len(g['stops']) // 2][1], 1.0
+                else:
+                    scolor, salpha = g['stops'][0][1], g['stops'][0][2]
             else:
                 scolor, salpha = _color_alpha(sval)
-            stroke = {'color': scolor,
+            stroke = {'color': scolor, 'grad': sgrad,
                       'alpha': salpha * float(st.get('stroke-opacity') or 1) * opacity,
                       'width': float(st.get('stroke-width') or 1) * mat_scale_avg(m),
                       'dash': bool(st.get('stroke-dasharray') and st.get('stroke-dasharray') != 'none'),
@@ -701,26 +827,79 @@ class Parser:
         baseline = st.get('dominant-baseline') or ''
         x = float(el.get('x') or 0)
         y = float(el.get('y') or 0)
+        # parts: [((x, y), [(run_text, run_color), ...])]. A <tspan> with its own x/y/dx/dy
+        # starts a new positioned line; an inline <tspan> (a coloured word inside a line)
+        # is a RUN of the current line, and the text that follows it (its XML tail) is the
+        # next run of that same line — '<tspan fill=blue>trading</tspan>-subdomain-1' is one
+        # line, two colours. Until this fix the tail was dropped and the tspan fill ignored.
         parts = []
-        if (el.text or '').strip():
-            parts.append(((x, y), (el.text or '').strip()))
+        _ws = lambda t: re.sub(r'\s+', ' ', t or '')
+        def _tsp_color(tsp):
+            f = tsp.get('fill')
+            if f and not f.startswith('url(') and _color(f):
+                return _color(f)
+            return color
+        if _ws(el.text).strip():
+            parts.append(((x, y), [(_ws(el.text), color)]))
         for tsp in el:
             if _strip(tsp.tag) != 'tspan':
                 continue
+            positioned = any(tsp.get(k) is not None for k in ('x', 'y', 'dx', 'dy'))
             tx = float(tsp.get('x')) if tsp.get('x') is not None else x
             ty = float(tsp.get('y')) if tsp.get('y') is not None else y
             tx += float(tsp.get('dx') or 0)
             ty += float(tsp.get('dy') or 0)
-            if (tsp.text or '').strip():
-                parts.append(((tx, ty), (tsp.text or '').strip()))
+            if positioned or not parts:
+                parts.append(((tx, ty), []))
+            runs = parts[-1][1]
+            if _ws(tsp.text).strip():
+                runs.append((_ws(tsp.text), _tsp_color(tsp)))
+            if _ws(tsp.tail).strip():
+                runs.append((_ws(tsp.tail), color))
             x, y = tx, ty
         rot = mat_rotation_deg(m) if mat_is_rotated(m) else 0.0
-        for (px_, py_), text in parts:
+        for (px_, py_), runs in parts:
+            runs = [(t, c) for t, c in runs if t]
+            if not runs:
+                continue
+            runs[0] = (runs[0][0].lstrip(), runs[0][1])
+            runs[-1] = (runs[-1][0].rstrip(), runs[-1][1])
+            runs = [(t, c) for t, c in runs if t]
+            if not runs:
+                continue
             p = mat_apply(m, px_, py_)
             self.nodes.append({'t': 'text', 'x': p[0], 'y': p[1], 'size': size,
-                               'weight': weight, 'color': color, 'grad': grad,
-                               'anchor': anchor, 'baseline': baseline,
-                               'rot': rot, 'text': text})
+                               'weight': weight, 'family': st.get('font-family'),
+                               'color': runs[0][1] if len(runs) == 1 else color,
+                               'grad': grad, 'anchor': anchor, 'baseline': baseline,
+                               'rot': rot, 'text': ''.join(t for t, _ in runs),
+                               'runs': runs})
+
+
+def _shape_gradient(g, bbox):
+    """A parsed gradient paint → the shape's own gradient for a shape with bbox
+    (x, y, w, h) in slide px. Linear: {'kind':'grad','angle','stops'} (userSpaceOnUse
+    ramps cut to this shape's slice). Radial: {'kind':'radial','stops','focus':(fx,fy)}
+    with focus as bbox fractions and stops rescaled to PowerPoint's circle extent."""
+    x, y, w, h = bbox
+    if g['kind'] == 'grad':
+        if 'user_vec' not in g:
+            return {'kind': 'grad', 'angle': g['angle'], 'stops': g['stops']}
+        angle, stops = user_space_window(g['stops'], g['user_vec'][0], g['user_vec'][1], bbox)
+        return {'kind': 'grad', 'angle': angle, 'stops': stops}
+    # radial
+    if 'user_c' in g:
+        (fxp, fyp), r_px = g['user_f'], g['user_r']
+    else:   # objectBoundingBox fractions; r scales with the box (exact for circles)
+        fxp, fyp = x + g['fx'] * w, y + g['fy'] * h
+        r_px = g['r'] * (w + h) / 2
+    w_, h_ = max(w, 1e-6), max(h, 1e-6)
+    ffx, ffy = min(1.0, max(0.0, (fxp - x) / w_)), min(1.0, max(0.0, (fyp - y) / h_))
+    # PowerPoint's path="circle" gradient runs from the focus (pos 0) out to the farthest
+    # bbox corner (pos 100000); SVG's runs from the focus to radius r and pads beyond.
+    reach = max(math.hypot(cx - fxp, cy - fyp) for cx in (x, x + w) for cy in (y, y + h))
+    stops = remap_stops(g['stops'], 0.0, reach / max(r_px, 1e-6))
+    return {'kind': 'radial', 'stops': stops, 'focus': (ffx, ffy), 'reach': reach}
 
 
 def _points(s):
@@ -763,6 +942,23 @@ def _color_alpha(v):
     return '#000000', 1.0
 
 
+def picture_reason(root):
+    """Why this SVG stays a picture, or None to convert it. Order: the author's
+    `data-pptx` wins, then chart provenance, then the size ceiling."""
+    want = (root.get('data-pptx') or '').strip().lower()
+    if want == 'picture':
+        return 'data-pptx="picture"'
+    if want == 'shapes':
+        return None
+    chart = root.get('data-pptx-chart')
+    if chart:
+        return f'{chart} chart (data-pptx="shapes" converts it)'
+    n_paint = sum(1 for e in root.iter() if _strip(e.tag) in PAINT_TAGS)
+    if n_paint > MAX_ELEMENTS:
+        return f'{n_paint} paint elements > {MAX_ELEMENTS} (data-pptx="shapes" converts it)'
+    return None
+
+
 def convert(svg_path, rect):
     """svg file + placement rect {'x','y','w','h'} (slide px) → list of model nodes."""
     try:
@@ -774,12 +970,16 @@ def convert(svg_path, rect):
 
 # ---------------------------------------------------------------- re-render (verify)
 
+def _bb(n):
+    return n['bbox'] if n['t'] == 'free' else (n['x'], n['y'], n['w'], n['h'])
+
+
 def model_to_svg(nodes, rect):
     """Re-render the model back to SVG — what the verify diff screenshots."""
     defs, body = [], []
     gid = [0]
 
-    def fill_attr(fill, el_id):
+    def fill_attr(fill, bbox):
         if fill is None:
             return 'fill="none"'
         if fill['kind'] == 'solid':
@@ -787,6 +987,17 @@ def model_to_svg(nodes, rect):
             return f'fill="{fill["color"]}"{a}'
         gid[0] += 1
         name = f'vg{gid[0]}'
+        if fill['kind'] == 'radial':
+            # mirror what PowerPoint draws: circle centred on the focus, reaching the
+            # farthest bbox corner at stop 1 — the verify diff then measures that model
+            bx, by, bw, bh = bbox
+            stops = ''.join(
+                f'<stop offset="{p * 100:.2f}%" stop-color="{c}" stop-opacity="{a}"/>'
+                for p, c, a in fill['stops'])
+            defs.append(f'<radialGradient id="{name}" gradientUnits="userSpaceOnUse" '
+                        f'cx="{bx + fill["focus"][0] * bw}" cy="{by + fill["focus"][1] * bh}" '
+                        f'r="{fill["reach"]}">{stops}</radialGradient>')
+            return f'fill="url(#{name})"'
         ang = math.radians(fill['angle'])
         x2, y2 = math.cos(ang), math.sin(ang)
         x1 = y1 = 0.0
@@ -800,21 +1011,24 @@ def model_to_svg(nodes, rect):
         defs.append(f'<linearGradient id="{name}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}">{stops}</linearGradient>')
         return f'fill="url(#{name})"'
 
-    def stroke_attr(sk):
+    def stroke_attr(sk, bbox=None):
         if not sk:
             return 'stroke="none"'
         dash = ' stroke-dasharray="6 5"' if sk['dash'] else ''
         cap = ' stroke-linecap="round"' if sk['cap'] == 'rnd' else ''
         op = f' stroke-opacity="{sk["alpha"]}"' if sk.get('alpha', 1) < 1 else ''
-        return f'stroke="{sk["color"]}" stroke-width="{sk["width"]}"{dash}{cap}{op}'
+        paint = sk['color']
+        if sk.get('grad') and bbox:
+            paint = fill_attr(sk['grad'], bbox)[len('fill="'):-1]
+        return f'stroke="{paint}" stroke-width="{sk["width"]}"{dash}{cap}{op}'
 
     for n in nodes:
         if n['t'] == 'rect':
             body.append(f'<rect x="{n["x"]}" y="{n["y"]}" width="{n["w"]}" height="{n["h"]}" '
-                        f'rx="{n.get("rx") or 0}" {fill_attr(n["fill"], id(n))} {stroke_attr(n["stroke"])}/>')
+                        f'rx="{n.get("rx") or 0}" {fill_attr(n["fill"], _bb(n))} {stroke_attr(n["stroke"], _bb(n))}/>')
         elif n['t'] == 'ellipse':
             body.append(f'<ellipse cx="{n["x"] + n["w"] / 2}" cy="{n["y"] + n["h"] / 2}" '
-                        f'rx="{n["w"] / 2}" ry="{n["h"] / 2}" {fill_attr(n["fill"], id(n))} {stroke_attr(n["stroke"])}/>')
+                        f'rx="{n["w"] / 2}" ry="{n["h"] / 2}" {fill_attr(n["fill"], _bb(n))} {stroke_attr(n["stroke"], _bb(n))}/>')
         elif n['t'] == 'free':
             d = []
             for sp in n['subpaths']:
@@ -826,13 +1040,16 @@ def model_to_svg(nodes, rect):
                         d.append(f'C {seg[1]} {seg[2]} {seg[3]} {seg[4]} {seg[5]} {seg[6]}')
                 if sp['closed']:
                     d.append('Z')
-            body.append(f'<path d="{" ".join(d)}" {fill_attr(n["fill"], id(n))} {stroke_attr(n["stroke"])}/>')
+            body.append(f'<path d="{" ".join(d)}" {fill_attr(n["fill"], _bb(n))} {stroke_attr(n["stroke"], _bb(n))}/>')
         elif n['t'] == 'text':
             anchor = n['anchor']
             rot = f' transform="rotate({n["rot"]} {n["x"]} {n["y"]})"' if n.get('rot') else ''
             body.append(f'<text x="{n["x"]}" y="{n["y"]}" font-size="{n["size"]}" '
                         f'font-family="{_TEXT_FONT}" font-weight="{n["weight"]}" fill="{n["color"]}" '
-                        f'text-anchor="{anchor}"{rot}>{_xml_esc(n["text"])}</text>')
+                        f'text-anchor="{anchor}"{rot}>'
+                        + (''.join(f'<tspan fill="{c}">{_xml_esc(t)}</tspan>' for t, c in n['runs'])
+                           if len(n.get('runs') or []) > 1 else _xml_esc(n["text"]))
+                        + '</text>')
     w = rect['x'] + rect['w'] + 20
     h = rect['y'] + rect['h'] + 20
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" '

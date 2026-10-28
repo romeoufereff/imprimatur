@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>img svg fixture</title>
+<!-- pptx-export regression fixture (1.6.6), graded by `run_evals.py export`. An <img> whose
+     src is an SVG (the co-brand lockup's partner logo) converts to native shapes with the
+     file's own class styles resolved, and a brightness(0) invert(1) filter paints it white;
+     any other filter keeps the picture. Until 1.6.6 every such <img> was a 1x screenshot
+     (an 86x31 px EPAM mark on a 2026-10-23 client deck). The page's own `.st0` rule
+     must not leak into the mark. Brand-neutral. -->
+<style>
+  html, body { margin: 0; }
+  #slide { position: relative; width: 1920px; height: 1080px; background: rgb(255, 255, 255); }
+  .st0 { fill: rgb(255, 0, 0); }
+  .panel { position: absolute; left: 600px; top: 60px; width: 520px; height: 220px;
+           background: rgb(34, 34, 34); }
+  img { position: absolute; display: block; width: auto; }
+  .mark-plain { left: 120px; top: 100px; height: 60px; }
+  .mark-white { left: 700px; top: 120px; height: 60px; filter: brightness(0) invert(1); }
+  .mark-data { left: 120px; top: 400px; height: 40px; }
+  .mark-shadow { left: 700px; top: 400px; height: 60px; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4)); }
+</style>
+</head>
+<body>
+<div id="slide" data-template="fixture">
+  <img class="mark-plain" src="img-svg-mark.svg" alt="mark">
+  <div class="panel"></div>
+  <img class="mark-white" src="img-svg-mark.svg" alt="mark">
+  <img class="mark-data" alt="square"
+       src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='rgb(48, 85, 218)'/%3E%3C/svg%3E">
+  <img class="mark-shadow" src="img-svg-mark.svg" alt="mark">
+</div>
+</body>
+</html>

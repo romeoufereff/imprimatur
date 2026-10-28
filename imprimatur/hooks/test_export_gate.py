@@ -14,10 +14,14 @@ import tempfile
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "export_gate.py")
 
 
-def run_hook(command):
-    payload = json.dumps({"tool_input": {"command": command}})
+def run_hook(command, cwd=None, proc_cwd=None):
+    body = {"tool_input": {"command": command}}
+    if cwd:
+        body["cwd"] = cwd
+    payload = json.dumps(body)
     proc = subprocess.run(
-        [sys.executable, HOOK], input=payload, capture_output=True, text=True
+        [sys.executable, HOOK], input=payload, capture_output=True, text=True,
+        cwd=proc_cwd or tempfile.gettempdir()
     )
     return proc.returncode, proc.stderr
 
@@ -126,6 +130,20 @@ def main():
     d = deck("scratch", slides=False)
     code, err = run_hook(f'python3 batch_convert.py --output "{d}/out.pdf"')
     check("non-deck output folder allowed", 0, code, err)
+
+    # 15-17. Relative --deck-dir resolves against the SESSION cwd / a preceding `cd`, not
+    #        the hook process's own cwd (2026-10-01: `--deck-dir .` was blocked with
+    #        "annotations.json does not exist" for a reviewed deck).
+    clean = {"annotations": [{"id": 1, "status": "resolved", "comment": "ok"}]}
+    d = deck("relative-clean", annotations=clean)
+    code, err = run_hook('python3 html2pptx.py --deck-dir . --output out.pptx', cwd=d)
+    check("--deck-dir . resolves against payload cwd", 0, code, err)
+    code, err = run_hook(f'cd "{d}" && python3 html2pptx.py --deck-dir . --output out.pptx')
+    check("--deck-dir . resolves after a leading cd", 0, code, err)
+    d = deck("relative-open", annotations={"annotations": [{"id": 1, "status": "open"}]})
+    code, err = run_hook(f'cd "{os.path.dirname(d)}" && python3 html2pptx.py '
+                         f'--deck-dir={os.path.basename(d)} --output x.pptx')
+    check("relative --deck-dir= with open comments still blocked", 2, code, err)
 
     shutil.rmtree(tmp, ignore_errors=True)
     failed = results.count(False)

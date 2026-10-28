@@ -56,8 +56,38 @@ already looked at those; one look per such slide at most.
 9. **Accessibility / plain language** — acronyms explained, sentences simple for the audience.
 10. **Narrative flow** — the slide does its job in the arc; pacing has breathers after dense runs.
 
+**Diagram vocabulary** (any slide with panels, nodes or connectors) — judgment rows the
+script cannot settle. `qa.py --deck-dir "$DECK" --json` already holds each slide's
+`vocabulary` (panel styles in use, tinted panels, connector colours, every element painted in
+the decision colour) — read it there instead of counting by eye; the orchestrator ran it.
+- **One meaning per colour** — the accent (`diagram.decisionRole`, default `accent`) means
+  one thing across the deck (house rule: a person decides); a "hybrid" or "shared" mode is a
+  `primary` outline chip, not accent. Name every slide where it means something else.
+- **Card vocabulary = the pack's** — every card, panel and band is built the way the pack's
+  own card templates build them (find them in `pack_brief.py`'s template index: card grids,
+  feature grids, differentiator grids): their fill, border, radius, padding. Typically that
+  means a white card with a 1px `rule` border and the pack radius, a focal card in
+  the `tint` fill with no border, the "a person decides" card in the decision tint
+  (`surface-accent`), bands as a rule above and below — and no coloured stripes, no shadows.
+  "Consistent with each other" is not the test; matching the pack is. Two critique rounds
+  approved consistent 3px top-stripe cards on 2026-10-26 and the owner rejected them as a
+  generic, non-pack pattern (tell: *accent-stripe cards*).
+- **≤ 3 panel styles** — rule band · the pack's card · its tinted card (focal, or a person
+  decides). Which tint fills a card is meaning (the work mode), not another style.
+- **Box fill follows the legend's work mode**, the same on every slide; flow-node text is
+  top-aligned so rows of nodes read as one grid.
+- **One connector colour**, dashed `muted` for exception paths; labels off the lines.
+- **Density is type size too** — a dense diagram slide whose body text sits above the pack's
+  small body step (`body-sm` / copy) reads crowded even within the item budget, typically
+  after a restyle into a wider brand font. The fix is one factor for all body text, SVG labels
+  included, floored at the pack minimum — never a copy cut.
+Geometry (arrow tips, lines through text, connector contrast, text leaving its box) is
+`qa.py`'s, not yours.
+
 Then the **named tells** from `references/anti-slop-tells.md`: card-in-card · hero-less ·
-centered-everything · symmetric-grid crutch · gradient overuse · decorative-only icons —
+centered-everything · symmetric-grid crutch · gradient overuse · decorative-only icons ·
+box-style sprawl · accent-stripe cards · accent with two meanings · rainbow connectors ·
+decorative marks —
 name the tell, say how it weakens the slide, suggest the on-brand alternative. **Brand-drift
 tells** (cream canvas, serif display, terracotta, indigo-purple cards, dark panels,
 soft-shadow stacks, emoji) are hard flags: the fix is re-copying the template. Bespoke SVG
@@ -95,6 +125,16 @@ you) + deck-level tells you can see across the sequence: template-monotony, wall
 (too few real visuals for the dial), no typographic hero moment on a 6+ slide deck,
 breathers cut. Name the slides and the cheapest fix (a `-focal`/`-asymmetric` variant, one
 re-inserted breather), never a redesign.
+
+## Foreign decks (not an imprimatur folder)
+
+When the spawn prompt says `FOREIGN DECK` — one HTML file someone else built, reviewed for a
+restyle — there is no `deck-brief.md`, `design-decisions.md`, `plan_check.py` or `qa.py`.
+You get a list of PNG renders (`render_deck.py`, ≤ 14 per critic, several critics in
+parallel) and judge from the images alone: the ten frameworks, the diagram vocabulary above
+and the tells. Same table, plus a severity 1–5 and `REDESIGN` / `POLISH` / `PASS` per slide,
+and a list of **global patterns** (one fix each) above the table. Never read the deck HTML.
+Process: `skills/deck-review/references/foreign-deck.md`.
 
 ## Re-checks
 

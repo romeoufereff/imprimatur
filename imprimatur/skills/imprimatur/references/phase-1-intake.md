@@ -13,6 +13,15 @@ questions in full, the boundaries, and the fast-track rule.
 6. **Anti-references** *(optional, valuable)* — what the deck must NOT look or sound like
    ("not a wall of identical cards", "no hypey sales tone"). Recorded in `deck-brief.md` so
    every agent steers clear.
+7. **Motion** — *"Animate the slides? **Yes** — each slide constructs itself as it opens and
+   the deck gets transitions between slides (HTML viewer only; PDF and PPTX are unaffected).
+   **No** — a static deck."* If yes, fold the two follow-ups into the same question:
+   transition style (`crossfade` default · `push` · `zoom-through`) and **steps** (bullets /
+   cards revealed on keypress) or **auto** (entrance only). Decided **once, here**: a *no* means
+   §7b never runs, the viewer stays plain and not one token is spent on motion; a *yes* costs
+   one script run at §7b and nothing before it. Default when never asked = no. Only offer it
+   when the active pack declares a `motion` block (`ds_config.py` prints `motion: on`); a pack
+   without one cannot say how its brand moves, so the question is moot.
 
 Example: *"Got it. Before we start — will the client team be mostly executives, technical
 leads, or mixed? 8, 12 or 15+ slides? What are the non-negotiables (e.g. 'show current SAP
@@ -61,8 +70,12 @@ denser or more uniform?"* The dials are how this pipeline prevents its #1 failur
 ## Write the two files
 
 - **`deck-brief.md`** from `templates/deck-brief-template.md`, in the deck folder, before the
-  narrative handoff: intake + dials + anti-references + per-deck voice, so narrative,
-  designer and design-crit read the same locked intent instead of re-deriving it from chat.
+  narrative handoff: intake + dials + anti-references + per-deck voice + the `Motion:` line, so
+  narrative, designer and design-crit read the same locked intent instead of re-deriving it
+  from chat.
+- **`deck-state.json`** gets the deck-level `motion` field at the same moment
+  (`{"enabled": false}` or `{"enabled": true, "transition": "crossfade", "steps": false}`);
+  `assemble_deck.py` and `choreograph.py` read it, with the brief's `Motion:` line as fallback.
 - **`design-decisions.md`** from `templates/design-decisions-template.md`, title filled,
   otherwise empty. Phase 4a fills the plan into it; `log_slide.py` updates it per slide;
   design-crit and every fresh designer read it. It is the durable record that makes
@@ -86,6 +99,7 @@ acceptance with zero open comments.
 ## Done when
 
 - [ ] Audience, outcome, length, context, must-haves locked; anti-references captured or explicitly skipped
+- [ ] Motion decided (yes · transition · steps/auto, or no) and recorded in `deck-brief.md` **and** `deck-state.json` `motion`
 - [ ] Taste dials defaulted, stated, confirmed
 - [ ] Sources (if any) extracted to `Input/source-notes.md` by an Explore subagent — not read by you
 - [ ] `deck-brief.md` and an empty `design-decisions.md` written to the deck folder

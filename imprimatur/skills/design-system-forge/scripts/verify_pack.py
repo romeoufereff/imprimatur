@@ -146,9 +146,12 @@ def check_fonts(pack, manifest):
                         problems.append(f"@font-face points at a missing file: {url} "
                                         f"(in {os.path.relpath(full, pack)})")
             # families named in a Tailwind fontFamily stack
+            # (only the quoted names inside each [...] value: a quoted key such as
+            # 'brand-display': is a utility name, not a family)
             for stack in re.findall(r"fontFamily:\s*\{(.*?)\}", text, re.S):
-                for fam in re.findall(r"['\"]([A-Za-z][A-Za-z0-9 .-]{1,40})['\"]", stack):
-                    families.setdefault(fam.strip(), set()).add(os.path.relpath(full, pack))
+                for arr in re.findall(r"\[(.*?)\]", stack, re.S):
+                    for fam in re.findall(r"['\"]([A-Za-z][A-Za-z0-9 .-]{1,40})['\"]", arr):
+                        families.setdefault(fam.strip(), set()).add(os.path.relpath(full, pack))
 
     real_pack = os.path.realpath(pack)
     orphans = sorted(on_disk - referenced)
@@ -242,6 +245,25 @@ def check_contract(pack):
     on = sum(1 for v in rules.values() if v)
     if on < 6:
         warnings.append(f"only {on} rule(s) enabled — a pack this permissive will not catch drift")
+
+    # deck-motion (contract 1.1) is optional: a pack without the block simply cannot animate, and
+    # the §1 motion question is not asked for it. Worth a warning, never a failure.
+    mo = m.get("motion")
+    if not isinstance(mo, dict):
+        warnings.append("no `motion` block — decks on this pack cannot opt into deck-motion; "
+                        "re-forge (emit_pack.py writes a default) or add one by hand")
+    else:
+        rs = mo.get("roleSelectors") or {}
+        if not rs.get("never"):
+            warnings.append("motion.roleSelectors.never is empty — the logo and footer strip may animate")
+        t = (mo.get("transition") or {}).get("type")
+        VIEWER_TRANSITIONS = ("crossfade", "push", "zoom-through", "zoom-blur", "whip-pan", "light-leak", "push-depth", "none")
+        if t not in (None,) + VIEWER_TRANSITIONS:
+            problems.append(f"motion.transition.type {t!r} is not one the viewer implements "
+                            f"({' | '.join(VIEWER_TRANSITIONS)})")
+        for stem, o in (mo.get("templateOverrides") or {}).items():
+            if isinstance(o, dict) and o.get("transition_in") not in (None,) + VIEWER_TRANSITIONS:
+                problems.append(f"motion.templateOverrides.{stem}.transition_in {o.get('transition_in')!r} is not a viewer transition")
     fp, fw = check_fonts(pack, m)
     problems += fp
     warnings += fw
